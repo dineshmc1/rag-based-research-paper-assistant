@@ -185,7 +185,7 @@ export function WorkspaceSidebar({ collapsed, onToggleCollapse }: WorkspaceSideb
                     {/* Folder Header */}
                     <div
                       className={cn(
-                        "group flex items-center gap-2 p-3 rounded-lg border border-border hover:bg-accent/50 transition-colors w-full",
+                        "group flex items-center gap-2 p-3 rounded-lg border border-border hover:bg-accent/50 transition-colors w-full relative",
                         isActive && "bg-accent border-accent-foreground/20",
                       )}
                       onDragOver={handleDragOver}
@@ -209,33 +209,35 @@ export function WorkspaceSidebar({ collapsed, onToggleCollapse }: WorkspaceSideb
                           {folder.pdfFiles.length} PDFs • {folder.chatSessions.length} chats
                         </p>
                       </div>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7 text-muted-foreground hover:text-foreground shrink-0 ml-1"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => setEditingItem({ id: folder.id, type: "folder", name: folder.name })}
-                          >
-                            <Edit2 className="mr-2 h-4 w-4" />
-                            Rename
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            onClick={() => deleteFolder(folder.id)}
-                            className="text-destructive focus:text-destructive"
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                      <div className="shrink-0 flex items-center z-10">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 text-muted-foreground hover:text-foreground"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <MoreVertical className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem
+                              onClick={() => setEditingItem({ id: folder.id, type: "folder", name: folder.name })}
+                            >
+                              <Edit2 className="mr-2 h-4 w-4" />
+                              Rename
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onClick={() => deleteFolder(folder.id)}
+                              className="text-destructive focus:text-destructive"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
                     </div>
 
                     {/* Expanded Folder Content */}
