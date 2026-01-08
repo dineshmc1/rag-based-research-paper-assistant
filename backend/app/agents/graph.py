@@ -62,12 +62,12 @@ def grade_documents(state: AgentState):
     # Ideally, we iterate over each doc.
     # For this MVP, let's treat the whole context as one block to grade or parse it.
     
-    score = retrieval_grader.invoke({"question": question, "document": docs_content})
+    score = retrieval_grader.invoke({"question": question, "document": docs})
     grade = score.binary_score
     
     if grade == "yes":
         from langchain_core.documents import Document
-        retrieved_doc = Document(page_content=docs_content, metadata={"source": "Retrieved Tool"})
+        retrieved_doc = Document(page_content=docs, metadata={"source": "Retrieved Tool"})
         
         return {"is_relevant": True, "documents": [retrieved_doc]}
     else:
