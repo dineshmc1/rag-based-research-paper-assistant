@@ -169,8 +169,8 @@ export function WorkspaceSidebar({ collapsed, onToggleCollapse }: WorkspaceSideb
         </div>
 
         {/* Folders List */}
-        <ScrollArea className="flex-1 px-4">
-          <div className="flex flex-col gap-2 pb-4">
+        <ScrollArea className="flex-1">
+          <div className="px-4 flex flex-col gap-2 pb-4">
             {folders.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground text-sm">
                 Create a folder to organize your research
@@ -185,7 +185,7 @@ export function WorkspaceSidebar({ collapsed, onToggleCollapse }: WorkspaceSideb
                     {/* Folder Header */}
                     <div
                       className={cn(
-                        "group flex items-center gap-2 p-3 rounded-lg border border-border hover:bg-accent/50 transition-colors",
+                        "group flex items-center gap-2 p-3 rounded-lg border border-border hover:bg-accent/50 transition-colors w-full",
                         isActive && "bg-accent border-accent-foreground/20",
                       )}
                       onDragOver={handleDragOver}
@@ -194,7 +194,7 @@ export function WorkspaceSidebar({ collapsed, onToggleCollapse }: WorkspaceSideb
                         handleDrop(folder.id)
                       }}
                     >
-                      <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => toggleFolder(folder.id)}>
+                      <Button variant="ghost" size="icon" className="h-5 w-5 shrink-0" onClick={() => toggleFolder(folder.id)}>
                         {isExpanded ? <FolderOpen className="h-4 w-4" /> : <Folder className="h-4 w-4" />}
                       </Button>
                       <div
@@ -205,7 +205,7 @@ export function WorkspaceSidebar({ collapsed, onToggleCollapse }: WorkspaceSideb
                         }}
                       >
                         <p className="text-sm font-medium truncate">{folder.name}</p>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-xs text-muted-foreground truncate">
                           {folder.pdfFiles.length} PDFs • {folder.chatSessions.length} chats
                         </p>
                       </div>
@@ -214,7 +214,7 @@ export function WorkspaceSidebar({ collapsed, onToggleCollapse }: WorkspaceSideb
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7 text-muted-foreground hover:text-foreground shrink-0"
+                            className="h-7 w-7 text-muted-foreground hover:text-foreground shrink-0 ml-1"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <MoreVertical className="h-4 w-4" />
@@ -276,7 +276,7 @@ export function WorkspaceSidebar({ collapsed, onToggleCollapse }: WorkspaceSideb
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-6 w-6 opacity-0 group-hover:opacity-100"
+                                  className="h-6 w-6 opacity-0 group-hover:opacity-100 shrink-0"
                                   onClick={(e) => e.stopPropagation()}
                                 >
                                   <MoreVertical className="h-3 w-3" />
@@ -337,7 +337,7 @@ export function WorkspaceSidebar({ collapsed, onToggleCollapse }: WorkspaceSideb
                                 <Button
                                   variant="ghost"
                                   size="icon"
-                                  className="h-6 w-6 opacity-0 group-hover:opacity-100"
+                                  className="h-6 w-6 opacity-0 group-hover:opacity-100 shrink-0"
                                   onClick={(e) => e.stopPropagation()}
                                 >
                                   <MoreVertical className="h-3 w-3" />
