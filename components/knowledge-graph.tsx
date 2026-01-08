@@ -30,7 +30,7 @@ export function KnowledgeGraph({ paperId }: KnowledgeGraphProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [graphData, setGraphData] = useState<GraphData | null>(null)
   const [loading, setLoading] = useState(true)
-  const animationRef = useRef<number>()
+  const animationRef = useRef<number | undefined>(undefined)
 
   useEffect(() => {
     fetchGraphData()
