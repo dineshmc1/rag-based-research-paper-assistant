@@ -85,7 +85,23 @@ export const useWorkspace = create<WorkspaceState>()(
         }))
       },
 
-      deleteFolder: (folderId: string) => {
+      deleteFolder: async (folderId: string) => {
+        const state = get()
+        const folder = state.folders.find(f => f.id === folderId)
+
+        if (folder) {
+          // Delete all papers in folder from server
+          for (const pdf of folder.pdfFiles) {
+            try {
+              await fetch(`http://localhost:8000/api/ingest/paper/${pdf.paperId}`, {
+                method: "DELETE",
+              })
+            } catch (error) {
+              console.error(`Failed to delete paper ${pdf.paperId}:`, error)
+            }
+          }
+        }
+
         set((state) => ({
           folders: state.folders.filter((folder) => folder.id !== folderId),
           activeFolderId: state.activeFolderId === folderId ? null : state.activeFolderId,
@@ -121,12 +137,12 @@ export const useWorkspace = create<WorkspaceState>()(
           folders: state.folders.map((folder) =>
             folder.id === folderId
               ? {
-                  ...folder,
-                  chatSessions: folder.chatSessions.map((chat) =>
-                    chat.id === chatId ? { ...chat, name: newName, updatedAt: Date.now() } : chat,
-                  ),
-                  updatedAt: Date.now(),
-                }
+                ...folder,
+                chatSessions: folder.chatSessions.map((chat) =>
+                  chat.id === chatId ? { ...chat, name: newName, updatedAt: Date.now() } : chat,
+                ),
+                updatedAt: Date.now(),
+              }
               : folder,
           ),
         }))
@@ -137,10 +153,10 @@ export const useWorkspace = create<WorkspaceState>()(
           folders: state.folders.map((folder) =>
             folder.id === folderId
               ? {
-                  ...folder,
-                  chatSessions: folder.chatSessions.filter((chat) => chat.id !== chatId),
-                  updatedAt: Date.now(),
-                }
+                ...folder,
+                chatSessions: folder.chatSessions.filter((chat) => chat.id !== chatId),
+                updatedAt: Date.now(),
+              }
               : folder,
           ),
           activeChatId: state.activeChatId === chatId ? null : state.activeChatId,
@@ -156,12 +172,12 @@ export const useWorkspace = create<WorkspaceState>()(
           folders: state.folders.map((folder) =>
             folder.id === folderId
               ? {
-                  ...folder,
-                  chatSessions: folder.chatSessions.map((chat) =>
-                    chat.id === chatId ? { ...chat, messages, updatedAt: Date.now() } : chat,
-                  ),
-                  updatedAt: Date.now(),
-                }
+                ...folder,
+                chatSessions: folder.chatSessions.map((chat) =>
+                  chat.id === chatId ? { ...chat, messages, updatedAt: Date.now() } : chat,
+                ),
+                updatedAt: Date.now(),
+              }
               : folder,
           ),
         }))
@@ -216,7 +232,29 @@ export const useWorkspace = create<WorkspaceState>()(
         }))
       },
 
-      deletePDF: (pdfId: string) => {
+      deletePDF: async (pdfId: string) => {
+        const state = get()
+        let paperId: string | null = null
+
+        // Find paperId
+        for (const folder of state.folders) {
+          const pdf = folder.pdfFiles.find(p => p.id === pdfId)
+          if (pdf) {
+            paperId = pdf.paperId
+            break
+          }
+        }
+
+        if (paperId) {
+          try {
+            await fetch(`http://localhost:8000/api/ingest/paper/${paperId}`, {
+              method: "DELETE",
+            })
+          } catch (error) {
+            console.error("Failed to delete paper from server:", error)
+          }
+        }
+
         set((state) => ({
           folders: state.folders.map((folder) => ({
             ...folder,

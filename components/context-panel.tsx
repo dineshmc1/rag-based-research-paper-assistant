@@ -67,9 +67,6 @@ export function ContextPanel({ answer, selectedPaper }: ContextPanelProps) {
               <TabsTrigger value="chunks" className="text-xs">
                 Retrieved
               </TabsTrigger>
-              <TabsTrigger value="graph" className="text-xs">
-                Graph
-              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="citations" className="flex-1 mt-0">
@@ -144,20 +141,6 @@ export function ContextPanel({ answer, selectedPaper }: ContextPanelProps) {
                   </div>
                 )}
               </ScrollArea>
-            </TabsContent>
-
-            <TabsContent value="graph" className="flex-1 mt-0">
-              <div className="h-full p-4">
-                {selectedPaper ? (
-                  <KnowledgeGraph paperId={selectedPaper} />
-                ) : (
-                  <div className="h-full flex items-center justify-center">
-                    <p className="text-sm text-muted-foreground text-center text-balance">
-                      Select a paper to view its knowledge graph
-                    </p>
-                  </div>
-                )}
-              </div>
             </TabsContent>
           </Tabs>
         )}

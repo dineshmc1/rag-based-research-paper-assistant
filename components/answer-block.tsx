@@ -5,6 +5,8 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { FileText, ChevronDown, ChevronUp } from "lucide-react"
 import { useState } from "react"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 
 interface AnswerBlockProps {
   answer: {
@@ -33,7 +35,19 @@ export function AnswerBlock({ answer }: AnswerBlockProps) {
     <Card className="p-6 bg-card border-border">
       {/* Answer */}
       <div className="prose prose-sm max-w-none dark:prose-invert">
-        <div className="text-foreground leading-relaxed whitespace-pre-wrap">{answer.answer}</div>
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={{
+            // Ensure images (plots) are responsive and handled correctly
+            img: ({ node, ...props }) => <img {...props} className="max-w-full h-auto rounded-lg" />,
+            // Style tables
+            table: ({ node, ...props }) => <div className="overflow-x-auto my-4"><table {...props} className="w-full border-collapse text-sm" /></div>,
+            th: ({ node, ...props }) => <th {...props} className="border border-border bg-muted p-2 text-left font-medium" />,
+            td: ({ node, ...props }) => <td {...props} className="border border-border p-2" />,
+          }}
+        >
+          {answer.answer}
+        </ReactMarkdown>
       </div>
 
       {/* Citations */}
