@@ -67,9 +67,36 @@ def grade_documents(state: AgentState):
     
     if grade == "yes":
         from langchain_core.documents import Document
-        retrieved_doc = Document(page_content=docs, metadata={"source": "Retrieved Tool"})
+        import json
         
-        return {"is_relevant": True, "documents": [retrieved_doc]}
+        try:
+            # Attempt to parse json content from tool
+            params = json.loads(docs)
+            if isinstance(params, list):
+                retrieved_docs = []
+                for item in params:
+                    # Retrieve tool returns strict structure
+                    content = item.get("content", str(item))
+                    # Map metadata
+                    metadata = {
+                        "source": item.get("source", "Retrieved Tool"),
+                        "page": item.get("source", "").replace("Page ", "").split(" -")[0] if "Page " in item.get("source", "") else None,
+                        "paper_id": item.get("paper_id"),
+                        "chunk_id": item.get("chunk_id"),
+                        "score": item.get("score")
+                    }
+                    retrieved_docs.append(Document(page_content=content, metadata=metadata))
+                
+                return {"is_relevant": True, "documents": retrieved_docs}
+            else:
+                # Not a list, maybe a single object or just string
+                retrieved_doc = Document(page_content=docs, metadata={"source": "Retrieved Tool"})
+                return {"is_relevant": True, "documents": [retrieved_doc]}
+                
+        except json.JSONDecodeError:
+             # Fallback for plain text tools (arxiv, search)
+            retrieved_doc = Document(page_content=docs, metadata={"source": "Retrieved Tool"})
+            return {"is_relevant": True, "documents": [retrieved_doc]}
     else:
         print("---DECISION: DOCS NOT RELEVANT---")
         return {"is_relevant": False}
@@ -110,13 +137,13 @@ def grade_generation_v_documents_and_question(state: AgentState):
     last_message = messages[-1]
     generation = last_message.content
     
-    # Get last tool message content as "facts"
-    # Simplification: Find last ToolMessage
-    docs = ""
-    for msg in reversed(messages):
+    # Get all tool message contents as "facts"
+    docs_list = []
+    for msg in messages:
         if hasattr(msg, "tool_call_id"):
-            docs = msg.content
-            break
+            docs_list.append(str(msg.content))
+    
+    docs = "\n\n".join(docs_list)
             
     # Grades
     hallucination_score = hallucination_grader.invoke({"documents": docs, "generation": generation})

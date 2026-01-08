@@ -58,10 +58,19 @@ async def query_papers(request: ChatRequest) -> ChatResponse:
 
         for i, doc in enumerate(state_docs):
             # Create the citation for the frontend
+            # Ensure safe type conversion for confidence
+            try:
+                score = float(doc.metadata.get("score", 0.0))
+            except (ValueError, TypeError):
+                score = 0.0
+                
             citation = {
-                "id": i + 1,
-                "content": doc.page_content,
-                "metadata": doc.metadata
+                "paper": doc.metadata.get("paper_id", "unknown"),
+                "page": doc.metadata.get("page", 1),
+                "chunk_id": doc.metadata.get("chunk_id", f"chunk_{i}"),
+                "confidence": score,
+                "section": doc.metadata.get("section", "N/A"),
+                "content": doc.page_content # Keep content just in case
             }
             citations.append(citation)
             

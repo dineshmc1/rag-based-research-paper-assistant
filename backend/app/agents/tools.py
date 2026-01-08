@@ -92,22 +92,63 @@ def python_interpreter_tool(code: str) -> str:
     """
     print(f"---EXECUTING CODE---")
     try:
-        # Create a safe globals dictionary
-        safe_globals = {"__builtins__": None, "pd": None, "np": None, "math": None}
-        # We can enable math modules
-        import math
-        safe_globals["math"] = math
-        
-        # Capture output
         import sys
+        import io
+        import base64
         from io import StringIO
+        
+        # Capture stdout
         old_stdout = sys.stdout
         redirected_output = sys.output = StringIO()
         
-        exec(code, safe_globals)
+        # Prepare environment
+        local_vars = {}
+        
+        # Relaxed globals with common data science libs
+        # We try to import them dynamically to avoid crashing if not installed
+        allowed_modules = {}
+        try:
+            import math
+            allowed_modules["math"] = math
+        except ImportError: pass
+        
+        try:
+            import numpy as np
+            allowed_modules["np"] = np
+            allowed_modules["numpy"] = np
+        except ImportError: pass
+        
+        try:
+            import pandas as pd
+            allowed_modules["pd"] = pd
+            allowed_modules["pandas"] = pd
+        except ImportError: pass
+            
+        try:
+            import matplotlib.pyplot as plt
+            allowed_modules["plt"] = plt
+            allowed_modules["matplotlib"] = plt
+        except ImportError: pass
+
+        # EXECUTE
+        exec(code, {**allowed_modules}, local_vars)
+        
+        # Get stdout
+        output_str = redirected_output.getvalue()
+        
+        # Check for plots if matplotlib was available
+        if "plt" in allowed_modules:
+            plt = allowed_modules["plt"]
+            if plt.get_fignums():
+                buf = io.BytesIO()
+                plt.savefig(buf, format="png")
+                buf.seek(0)
+                img_str = base64.b64encode(buf.read()).decode("utf-8")
+                plt.close('all')
+                output_str += f"\n\n![Generated Plot](data:image/png;base64,{img_str})"
         
         sys.stdout = old_stdout
-        return redirected_output.getvalue()
+        return output_str if output_str.strip() else "Code executed successfully (no output)."
         
     except Exception as e:
         return f"Error executing code: {e}"
@@ -142,7 +183,18 @@ def summarize_section_tool(section_name: str, paper_id: Optional[str] = None) ->
     msg = HumanMessage(content=f"Synthesize and summarize the following content from the '{section_name}' section of a research paper. \n\n Content: \n {context[:20000]}...") # truncate for safety
     
     response = llm.invoke([msg])
-    return response.content
+    summary = response.content
+    
+    # Return as JSON list for graph.py parsing
+    import json
+    result = [{
+        "content": summary,
+        "source": section_name, # e.g. "Abstract"
+        "score": 1.0,
+        "paper_id": paper_id,
+        "chunk_id": f"summary_{section_name}"
+    }]
+    return json.dumps(result)
 
 @tool
 def web_search_tool(query: str) -> str:

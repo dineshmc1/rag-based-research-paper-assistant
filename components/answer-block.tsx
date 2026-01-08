@@ -62,7 +62,7 @@ export function AnswerBlock({ answer }: AnswerBlockProps) {
           {showSources && (
             <div className="space-y-2">
               {answer.citations.map((citation, idx) => (
-                <div key={citation.chunk_id} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 text-sm">
+                <div key={`${citation.chunk_id}-${idx}`} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 text-sm">
                   <span className="font-medium text-muted-foreground">[{idx + 1}]</span>
                   <div className="flex-1">
                     <span className="text-foreground">Page {citation.page}</span>
@@ -70,7 +70,7 @@ export function AnswerBlock({ answer }: AnswerBlockProps) {
                     <span className="text-muted-foreground">{citation.section}</span>
                   </div>
                   <Badge variant="secondary" className="text-xs">
-                    {Math.round(citation.confidence * 100)}%
+                    {citation.confidence ? Math.round(citation.confidence * 100) : 0}%
                   </Badge>
                 </div>
               ))}

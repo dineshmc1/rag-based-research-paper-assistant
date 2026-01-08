@@ -57,17 +57,22 @@ Answer:"""
             
             answer = response.choices[0].message.content.strip()
             
-            # Extract citations from answer
+            # Return all retrieved chunks as citations
             citations = []
             for i, (chunk, score) in enumerate(chunks_with_scores):
-                if f"[Source {i+1}]" in answer:
-                    citations.append({
-                        "paper": chunk["paper_id"],
-                        "page": chunk["page_number"],
-                        "chunk_id": chunk["chunk_id"],
-                        "confidence": round(score, 2),
-                        "section": chunk["section"]
-                    })
+                confidence = 0.0
+                try:
+                    confidence = float(score)
+                except (ValueError, TypeError):
+                    confidence = 0.0
+                    
+                citations.append({
+                    "paper": chunk["paper_id"],
+                    "page": chunk["page_number"],
+                    "chunk_id": chunk["chunk_id"],
+                    "confidence": round(confidence, 2),
+                    "section": chunk["section"]
+                })
             
             return {
                 "answer": answer,
@@ -77,7 +82,7 @@ Answer:"""
                         "text": chunk["text"],
                         "page": chunk["page_number"],
                         "section": chunk["section"],
-                        "confidence": round(score, 2)
+                        "confidence": round(float(score) if isinstance(score, (int, float)) else 0.0, 2)
                     }
                     for chunk, score in chunks_with_scores
                 ]
