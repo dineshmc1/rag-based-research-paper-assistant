@@ -185,7 +185,7 @@ export function WorkspaceSidebar({ collapsed, onToggleCollapse }: WorkspaceSideb
                     {/* Folder Header */}
                     <div
                       className={cn(
-                        "group flex items-center gap-2 p-3 rounded-lg border border-border hover:bg-accent/50 transition-colors w-full relative",
+                        "group grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 p-3 rounded-lg border border-border hover:bg-accent/50 transition-colors w-full relative",
                         isActive && "bg-accent border-accent-foreground/20",
                       )}
                       onDragOver={handleDragOver}
@@ -198,7 +198,7 @@ export function WorkspaceSidebar({ collapsed, onToggleCollapse }: WorkspaceSideb
                         {isExpanded ? <FolderOpen className="h-4 w-4" /> : <Folder className="h-4 w-4" />}
                       </Button>
                       <div
-                        className="flex-1 min-w-0 cursor-pointer"
+                        className="min-w-0 cursor-pointer"
                         onClick={() => {
                           setActiveFolder(folder.id)
                           if (!isExpanded) toggleFolder(folder.id)
@@ -209,7 +209,7 @@ export function WorkspaceSidebar({ collapsed, onToggleCollapse }: WorkspaceSideb
                           {folder.pdfFiles.length} PDFs • {folder.chatSessions.length} chats
                         </p>
                       </div>
-                      <div className="shrink-0 flex items-center z-10">
+                      <div className="flex items-center z-10">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
