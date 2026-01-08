@@ -170,7 +170,7 @@ export function WorkspaceSidebar({ collapsed, onToggleCollapse }: WorkspaceSideb
 
         {/* Folders List */}
         <ScrollArea className="flex-1 px-4">
-          <div className="space-y-2 pb-4">
+          <div className="flex flex-col gap-2 pb-4">
             {folders.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground text-sm">
                 Create a folder to organize your research
@@ -214,10 +214,10 @@ export function WorkspaceSidebar({ collapsed, onToggleCollapse }: WorkspaceSideb
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-7 w-7 opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="h-7 w-7 text-muted-foreground hover:text-foreground shrink-0"
                             onClick={(e) => e.stopPropagation()}
                           >
-                            <MoreVertical className="h-3.5 w-3.5" />
+                            <MoreVertical className="h-4 w-4" />
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">

@@ -74,13 +74,13 @@ export function ContextPanel({ answer, selectedPaper }: ContextPanelProps) {
 
             <TabsContent value="citations" className="flex-1 mt-0">
               <ScrollArea className="h-full px-4 py-4">
-                {answer.citations.length === 0 ? (
+                {answer.citations?.length === 0 ? (
                   <div className="text-sm text-muted-foreground text-center py-8">No citations available</div>
                 ) : (
                   <div className="space-y-3">
-                    {answer.citations.map((citation: any, idx: number) => (
+                    {answer.citations?.map((citation: any, idx: number) => (
                       <Card
-                        key={citation.chunk_id}
+                        key={citation.chunk_id || idx}
                         className="p-4 hover:bg-accent/50 transition-colors cursor-pointer"
                         onClick={() => {
                           setPdfPage(citation.page)
@@ -103,11 +103,11 @@ export function ContextPanel({ answer, selectedPaper }: ContextPanelProps) {
                               <div className="flex-1 bg-muted/50 rounded-full h-1.5 overflow-hidden">
                                 <div
                                   className="bg-primary h-full transition-all"
-                                  style={{ width: `${citation.confidence * 100}%` }}
+                                  style={{ width: `${(citation.confidence || 0) * 100}%` }}
                                 />
                               </div>
                               <span className="text-xs text-muted-foreground">
-                                {Math.round(citation.confidence * 100)}%
+                                {Math.round((citation.confidence || 0) * 100)}%
                               </span>
                             </div>
                           </div>
@@ -121,11 +121,11 @@ export function ContextPanel({ answer, selectedPaper }: ContextPanelProps) {
 
             <TabsContent value="chunks" className="flex-1 mt-0">
               <ScrollArea className="h-full px-4 py-4">
-                {answer.retrieved_chunks.length === 0 ? (
+                {answer.retrieved_chunks?.length === 0 ? (
                   <div className="text-sm text-muted-foreground text-center py-8">No chunks retrieved</div>
                 ) : (
                   <div className="space-y-3">
-                    {answer.retrieved_chunks.map((chunk: any, idx: number) => (
+                    {answer.retrieved_chunks?.map((chunk: any, idx: number) => (
                       <Card key={idx} className="p-4">
                         <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center gap-2">
@@ -135,7 +135,7 @@ export function ContextPanel({ answer, selectedPaper }: ContextPanelProps) {
                             <span className="text-xs text-muted-foreground">{chunk.section}</span>
                           </div>
                           <Badge variant="secondary" className="text-xs">
-                            {Math.round(chunk.confidence * 100)}%
+                            {Math.round((chunk.confidence || 0) * 100)}%
                           </Badge>
                         </div>
                         <p className="text-xs text-muted-foreground leading-relaxed line-clamp-4">{chunk.text}</p>

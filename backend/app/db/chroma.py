@@ -91,5 +91,29 @@ class ChromaDBManager:
             where={"paper_id": paper_id}
         )
 
+    
+    def query_section(self, section_name: str, paper_id: Optional[str] = None) -> List[Dict]:
+        """Query ChromaDB for all chunks in a specific section."""
+        where_filter = {"section": section_name}
+        if paper_id:
+            where_filter = {"$and": [{"section": section_name}, {"paper_id": paper_id}]}
+            
+        # We want all chunks in that section, so we use get() instead of query()
+        results = self.collection.get(
+            where=where_filter
+        )
+        
+        chunks = []
+        for i in range(len(results["ids"])):
+            chunks.append({
+                "chunk_id": results["ids"][i],
+                "text": results["documents"][i],
+                "page_number": results["metadatas"][i]["page_number"],
+                "section": results["metadatas"][i]["section"],
+                "paper_id": results["metadatas"][i]["paper_id"]
+            })
+        
+        return chunks
+
 # Singleton instance
 chroma_db = ChromaDBManager()

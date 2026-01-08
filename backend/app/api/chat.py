@@ -7,7 +7,8 @@ from app.db.chroma import chroma_db
 from app.core.reranker import reranker
 from app.core.answer_synthesis import answer_synthesizer
 from app.core.config import settings
-
+from dotenv import load_dotenv
+load_dotenv()
 router = APIRouter()
 
 class ChatRequest(BaseModel):
@@ -25,89 +26,64 @@ class ChatResponse(BaseModel):
 @router.post("/query", response_model=ChatResponse)
 async def query_papers(request: ChatRequest) -> ChatResponse:
     """
-    Deep RAG query with expansion and reranking
-    
-    Process:
-    1. Query expansion (generate variants)
-    2. Parallel vector search
-    3. Cross-encoder reranking
-    4. Answer synthesis with citations
-    5. Concept extraction
+    Agentic RAG query using LangGraph
     """
     try:
-        reasoning_steps = {} if request.include_reasoning else None
+        from app.agents.graph import app as agent_app
+        from langchain_core.messages import HumanMessage
         
-        # Step 1: Query expansion
-        query_variants = await query_expander.expand_query(
-            request.query,
-            num_variants=settings.NUM_QUERY_VARIANTS
-        )
+        # Initial state
+        initial_state = {
+            "messages": [HumanMessage(content=request.query)],
+            "is_relevant": True,
+            "is_supported": True,
+            "documents": [],
+            "reasoning_trace": [],
+            "citations": [],
+            "retry_count": 0,
+            "plan": []
+        }
         
-        if reasoning_steps is not None:
-            reasoning_steps["query_variants"] = query_variants
+        # Invoke agent
+        config = {"configurable": {"thread_id": "1"}} # TODO: Use session ID
+        final_state = await agent_app.ainvoke(initial_state, config=config)
         
-        # Step 2: Parallel retrieval for all variants
-        all_chunks = []
-        seen_chunk_ids = set()
-        
-        for variant in query_variants:
-            # Embed query variant
-            query_embedding = embedding_model.embed_text(variant)
+        # Extract answer
+        messages = final_state["messages"]
+        last_message = messages[-1]
+        answer = last_message.content
+        state_docs = final_state.get("documents", [])
+        citations = []
+        retrieved_chunks = []
+
+        for i, doc in enumerate(state_docs):
+            # Create the citation for the frontend
+            citation = {
+                "id": i + 1,
+                "content": doc.page_content,
+                "metadata": doc.metadata
+            }
+            citations.append(citation)
             
-            # Retrieve chunks
-            chunks = chroma_db.query(
-                query_embedding=query_embedding,
-                top_k=settings.TOP_K_RETRIEVAL,
-                paper_id=request.paper_id
-            )
-            
-            # Deduplicate
-            for chunk in chunks:
-                if chunk["chunk_id"] not in seen_chunk_ids:
-                    all_chunks.append(chunk)
-                    seen_chunk_ids.add(chunk["chunk_id"])
+            # Create the chunk for the UI
+            retrieved_chunks.append({
+                "text": doc.page_content,
+                "index": i + 1
+            })
         
-        if reasoning_steps is not None:
-            reasoning_steps["total_retrieved"] = len(all_chunks)
-        
-        if not all_chunks:
-            return ChatResponse(
-                answer="I couldn't find relevant information in the papers to answer this question.",
-                citations=[],
-                retrieved_chunks=[],
-                concepts=[],
-                reasoning=reasoning_steps
-            )
-        
-        # Step 3: Rerank with cross-encoder
-        reranked_chunks = reranker.rerank(
-            query=request.query,
-            chunks=all_chunks,
-            top_k=settings.TOP_K_RERANKED
-        )
-        
-        if reasoning_steps is not None:
-            reasoning_steps["reranked_count"] = len(reranked_chunks)
-            reasoning_steps["top_scores"] = [score for _, score in reranked_chunks[:3]]
-        
-        # Step 4: Synthesize answer
-        result = await answer_synthesizer.synthesize(
-            query=request.query,
-            chunks_with_scores=reranked_chunks
-        )
-        
-        # Step 5: Extract concepts (simple keyword extraction)
-        concepts = extract_concepts(result["answer"])
+        concepts = extract_concepts(answer)
         
         return ChatResponse(
-            answer=result["answer"],
-            citations=result["citations"],
-            retrieved_chunks=result["retrieved_chunks"],
+            answer=answer,
+            citations=citations, 
+            retrieved_chunks=retrieved_chunks,
             concepts=concepts,
-            reasoning=reasoning_steps
+            reasoning={"steps": final_state.get("plan", [])}
         )
         
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Query failed: {str(e)}")
 
 def extract_concepts(text: str) -> List[str]:

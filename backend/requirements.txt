@@ -8,3 +8,8 @@ sentence-transformers==3.3.1
 openai==1.57.4
 numpy==1.26.4
 python-dotenv==1.0.1
+langgraph
+langchain
+langchain-openai
+langchain-community
+arxiv

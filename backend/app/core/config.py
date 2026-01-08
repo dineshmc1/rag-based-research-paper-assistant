@@ -2,9 +2,15 @@ from pydantic_settings import BaseSettings
 from typing import Optional
 
 class Settings(BaseSettings):
+
+    anonymized_telemetry: bool = False  
+    
     # OpenAI
     OPENAI_API_KEY: str
-    OPENAI_MODEL: str = "gpt-4o-mini"
+    OPENAI_MODEL: str = "gpt-4.1-mini"
+    
+    # External Tools
+    SERPER_API_KEY: Optional[str] = None
     
     # Embedding Model
     EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"

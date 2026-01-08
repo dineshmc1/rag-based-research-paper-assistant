@@ -37,7 +37,7 @@ export function AnswerBlock({ answer }: AnswerBlockProps) {
       </div>
 
       {/* Citations */}
-      {answer.citations.length > 0 && (
+      {answer.citations?.length > 0 && (
         <div className="mt-6 pt-6 border-t border-border">
           <div className="flex items-center justify-between mb-3">
             <h4 className="text-sm font-medium flex items-center gap-2">
@@ -80,7 +80,7 @@ export function AnswerBlock({ answer }: AnswerBlockProps) {
       )}
 
       {/* Concepts */}
-      {answer.concepts.length > 0 && (
+      {answer.concepts?.length > 0 && (
         <div className="mt-4 pt-4 border-t border-border">
           <h4 className="text-sm font-medium mb-3 text-muted-foreground">Key Concepts</h4>
           <div className="flex flex-wrap gap-2">
