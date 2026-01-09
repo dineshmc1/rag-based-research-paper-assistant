@@ -1,172 +1,220 @@
-# Research Paper RAG Assistant
+# Deep Agentic RAG for Research Papers
 
-A production-grade Research Assistant built with **Deep RAG (Retrieval-Augmented Generation)** for analyzing academic papers. This system is designed to provide high-fidelity, citation-grounded answers to complex research questions by leveraging advanced ingestion and retrieval pipelines.
+A production-grade, autonomous research assistant designed for rigorous scientific inquiry. This system goes beyond standard RAG by employing multi-step planning, iterative verification, and section-aware semantic understanding to provide evidence-backed answers from complex academic literature.
 
-## Features
+## 1. Project Overview
 
-### Backend (FastAPI + Python)
-- **High-Fidelity Ingestion**: Parses PDFs while preserving page numbers and section headers (Abstract, Introduction, Methods, etc.) using `PyMuPDF`.
-- **Semantic Chunking**: Implements a sliding window strategy (400 tokens chunk, 50 tokens overlap) to maintain context across sentence boundaries.
-- **Deep RAG Pipeline**:
-  - **Query Expansion**: Generates 3 semantic variants of every user query to maximize retrieval recall.
-  - **Parallel Vector Search**: Executes searches for all query variants simultaneously.
-  - **Cross-Encoder Reranking**: Re-scores the top retrieved chunks using a BERT-based Cross-Encoder to ensure high relevance.
-  - **Citation-Grounded Synthesis**: Answers are generated with strict citations pointing to specific pages and sections.
-- **Knowledge Graph**: Extracts key concepts and their relationships from papers for visualization.
+### The Problem
+Traditional RAG (Retrieval-Augmented Generation) pipelines often fail in research contexts because:
+1.  **Semantic Flattening**: They treat "Methods" and "Results" as equal text chunks, losing the logical structure of a paper.
+2.  **Single-Hop Myopia**: They cannot trace reasoning chains that span multiple papers or sections (e.g., matching a method in Paper A to a result in Paper B).
+3.  **Hallucination Risk**: Standard LLMs often fill in missing details with plausible-sounding but fabricated citations.
 
-### Frontend (Next.js 16 + React 19)
-- **Modern Academic UI**: Three-panel layout (Papers, Chat, Context) designed for deep work.
-- **Real-time Chat**: Streaming responses with immediate citation linking.
-- **Interactive Citations**: Clicking a citation opens the PDF to the exact page.
-- **Knowledge Graph**: Visual exploration of concepts using force-directed graphs.
-- **PDF Viewer**: Integrated PDF viewer for seamless verification.
+### The Solution: Deep Agentic RAG
+This system implements a **"Plan-Execute-Verify"** architecture inspired by recent advances in agentic AI. Instead of simply prepending context to a prompt, it:
+*   **Plans**: Decomposes complex queries into logical steps (e.g., "Find the method," then "Compare accuracy," then "Check for contradictions").
+*   **Reasons**: Uses a dedicated Python interpreter for numerical claims to ensure mathematical correctness.
+*   **Verifies**: Employing a "Critic" agent that grades every retrieved chunk for relevance and every generated answer for hallucination against the source text.
+*   **Structures**: Ingests papers not as blobs of text, but as structured semantic entities (Abstract, Methods, Results, Discussion).
 
-## Architecture
+## 2. Key Contributions
 
-### Ingestion Pipeline
-The ingestion process transforms raw PDFs into a searchable vector index with rich metadata.
+*   **Agentic Orchestration with LangGraph**: A cyclic graph architecture where agents can loop, retry, and rewrite queries based on feedback, rather than a linear DAG.
+*   **Section-Aware Ingestion**: A custom PDF parsing pipeline (`pdf_parser.py`) that identifies and tags content by section (e.g., `section: "Methods"`), enabling scoped queries like *"Summarize the ablation studies in the Results section"*
+*   **Triple-Step Verification**:
+    1.  **Retrieval Grading**: Filters irrelevant noise before it reaches the context window.
+    2.  **Hallucination Grading**: Verifies that every claim in the answer is supported by the retrieved context.
+    3.  **Answer Grading**: Ensures the verified answer actually addresses the user's core question.
+*   **Hybrid Tool Use**: Seamlessly switches between local vector search, arXiv for external literature, and a Python sandbox for data analysis.
 
-```mermaid
-graph LR
-    A[PDF Upload] --> B[PDF Parser]
-    B --> C[Text & Metadata Extraction]
-    C --> D[Semantic Chunking]
-    D --> E[Embedding Model]
-    E --> F[ChromaDB Vector Store]
-    
-    subgraph "Metadata Preserved"
-    B -.-> P[Page Numbers]
-    B -.-> S[Section Headers]
-    end
-```
+## 3. High-Level System Architecture
 
-1.  **PDF Parsing**: Files are processed using `fitz` (PyMuPDF). We use heuristics to detect section headers (e.g., "Introduction", "Results") and associate them with text.
-2.  **Chunking**: Text is split into sentence-aware chunks (400 tokens) with a sliding window overlap (50 tokens) to prevent losing context at cut-offs.
-3.  **Embedding**: Chunks are encoded into 384-dimensional vectors using `sentence-transformers/all-MiniLM-L6-v2`.
-4.  **Storage**: Vectors and metadata are stored in a local `ChromaDB` instance.
-
-### Retrieval Pipeline (Deep RAG)
-The retrieval process is optimized for precision and recall using a multi-stage approach.
+The system is built on a modular microservices architecture, separating rigorous data processing from agentic reasoning.
 
 ```mermaid
 graph TD
-    User[User Query] --> Exp[Query Expansion]
-    Exp -->|Variant 1| Q1[Vector Search]
-    Exp -->|Variant 2| Q2[Vector Search]
-    Exp -->|Variant 3| Q3[Vector Search]
-    
-    Q1 & Q2 & Q3 --> Dedup[Deduplication]
-    Dedup --> Rerank[Cross-Encoder Reranker]
-    Rerank -->|Top 5 Chunks| Synth[LLM Synthesis]
-    Synth --> Answer[Final Answer + Citations]
+    subgraph "Data Pipeline"
+        PDF[PDF Files] --> Parser[PDF Parser]
+        Parser --> |Extract Text & Sections| Chunker[Semantic Chunker]
+        Chunker --> Embedding[Sentence Transformers]
+        Embedding --> VectorDB[(ChromaDB)]
+    end
+
+    subgraph "Agent Core"
+        User[User Query] --> Planner[Planner Agent]
+        Planner --> Orchestrator[Orchestrator Agent]
+        Orchestrator --> |Route| Tools
+        
+        subgraph "Tool Suite"
+            Tools --> RAG[Retrieve Tool]
+            Tools --> Arxiv[ArXiv Tool]
+            Tools --> Code[Python Interpreter]
+            Tools --> Sum[Summarize Section]
+            
+            RAG --> Rerank[Cross-Encoder Reranker]
+            Rerank --> Grader1[Retrieval Grader]
+        end
+    end
+
+    subgraph "Verification Loop"
+        Grader1 --> |Relevant| Orchestrator
+        Grader1 --> |Irrelevant| Rewrite[Query Rewriter]
+        Rewrite --> Orchestrator
+        
+        Orchestrator --> |Generate Answer| Verifier[Hallucination Critic]
+        Verifier --> |Pass| Final[Final Answer]
+        Verifier --> |Fail| Loop[Retry Logic]
+        Loop --> Orchestrator
+    end
 ```
 
-1.  **Query Expansion**: The system uses GPT-4o-mini to generate 3 alternative phrasings of the user's question (e.g., "What are the limitations?" -> "Discuss the drawbacks and future work mentioned").
-2.  **Parallel Retrieval**: All 3 variants are embedded and used to query ChromaDB in parallel, retrieving the top 20 candidates for each.
-3.  **Deduplication**: Duplicate chunks (found by multiple variants) are merged.
-4.  **Reranking**: The unique set of candidates is passed to a Cross-Encoder (`cross-encoder/ms-marco-MiniLM-L-6-v2`). This model reads the query and chunk pairs together to predict a relevance score.
-5.  **Synthesis**: The top 5 highest-scoring chunks are fed to the LLM. The system prompt enforces strict citation formats `[Source X]`.
+## 4. End-to-End Workflow
 
-## Tech Stack
+The following state machine represents the lifecycle of a single user query through the `langgraph` workflow.
 
-### Backend
--   **Framework**: FastAPI
--   **Lang**: Python 3.10+
--   **Vector DB**: ChromaDB
--   **PDF Engine**: PyMuPDF (fitz)
--   **Embeddings**: SentenceTransformers (`all-MiniLM-L6-v2`)
--   **Reranker**: CrossEncoder (`ms-marco-MiniLM-L-6-v2`)
--   **LLM**: OpenAI GPT-4o-mini
--   **Graph**: NetworkX (for graph construction logic)
+```mermaid
+stateDiagram-v2
+    [*] --> Planner: User Query
+    Planner --> Agent: Step-by-Step Plan
+    
+    state Agent {
+        [*] --> Decider
+        Decider --> CallTools: Tool Call?
+        Decider --> GradeGen: Answer Ready?
+    }
+    
+    state ToolLoop {
+        CallTools --> Tools: Execute
+        Tools --> GradeDocs: Output
+        GradeDocs --> Agent: Relevant (Add to Context)
+        GradeDocs --> Rewrite: Irrelevant
+        Rewrite --> Agent: New Query
+    }
+    
+    state Verification {
+        GradeGen --> CheckHallucination: Grounded in Docs?
+        CheckHallucination --> CheckAnswer: Yes
+        CheckHallucination --> Agent: No (Retry)
+        CheckAnswer --> [*]: Yes (Success)
+        CheckAnswer --> Agent: No (Retry)
+    }
+    
+    Agent --> ToolLoop
+    Agent --> Verification
+```
 
-### Frontend
--   **Framework**: Next.js 16 (App Router)
--   **Library**: React 19
--   **Language**: TypeScript
--   **Styling**: Tailwind CSS v4
--   **Components**: shadcn/ui
--   **Icons**: Lucide React
--   **Visualization**: Recharts (charts), D3.js/React-Force-Graph (knowledge graph)
+## 5. Document Ingestion Pipeline
 
-## Getting Started
+The ingestion pipeline (`app.core`) transform raw PDFs into highly structured, queryable knowledge.
 
-### Prerequisites
--   Python 3.10 or higher
--   Node.js 18 or higher
--   OpenAI API Key
+1.  **PDF Parsing (`pdf_parser.py`)**:
+    *   Uses `PyMuPDF` (fitz) for page-level text extraction.
+    *   **Heuristic Section Classification**: Scans distinct keywords (e.g., "Introduction", "Materials and Methods") to assign a `section` metadata tag to every text block.
+    
+2.  **Semantic Chunking (`chunking.py`)**:
+    *   Splits text into sentences first, then aggregates them into chunks (default 400 tokens).
+    *   **Constraint**: Chunks never cross section boundaries. A chunk is strictly "Methods" or "Results", never a mix, preventing context contamination.
+    
+3.  **Embedding & Storage**:
+    *   Embeds chunks using `all-MiniLM-L6-v2`.
+    *   Stores rich metadata in ChromaDB: `{source, page, section, paper_id}`.
 
-### Backend Setup
+## 6. Models Used
 
-1.  Navigate to the backend directory:
-    ```bash
-    cd backend
-    ```
+| Component | Model / Technology | Justification | Alternatives Considered |
+| :--- | :--- | :--- | :--- |
+| **Reasoning Engine** | `gpt-4.1-mini` | High speed and reduced cost for iterative agent loops (planning, grading). | `gpt-4-turbo` (slower), `claude-3-haiku` |
+| **Embedding Model** | `sentence-transformers/all-MiniLM-L6-v2` | Excellent balance of performance and speed for local inference; widely benchmarked. | `openai-text-embedding-3-small` (requires API call) |
+| **Reranker** | `cross-encoder/ms-marco-MiniLM-L-6-v2` | Significantly boosts precision by scoring query-doc pairs directly. | Cohere Rerank (API dependency) |
+| **Search Provider** | Google Serper | Reliable, low-latency search for external grounding. | Tavily, Bing Search |
 
-2.  Create a virtual environment:
-    ```bash
-    python -m venv venv
-    source venv/bin/activate  # On Windows: venv\Scripts\activate
-    ```
+## 7. Retrieval Strategy
 
-3.  Install dependencies:
-    ```bash
-    pip install -r requirements.txt
-    ```
+The system employs a **Retrieve-and-Rerank** strategy with intelligent query expansion.
 
-4.  Configure environment variables:
-    ```bash
-    cp .env.example .env
-    ```
-    Open `.env` and add your OpenAI API key:
-    ```env
-    OPENAI_API_KEY=sk-your-key-here
-    ```
+1.  **Dense Retrieval**: Initial KNN search in ChromaDB using cosine similarity (`Top-K=20`).
+2.  **Cross-Encoder Reranking**: The top 20 candidates are passed to a Cross-Encoder, which inputs `(query, document_text)` and outputs a relevance score. This is computationally more expensive but filters out "distractor" chunks that share keywords but not meaning.
+3.  **Query Transformation**: If retrieved documents are graded as `irrelevant`, the **Rewriter Agent** reformulates the query (e.g., adding synonyms, breaking down complex questions) before retrying.
 
-5.  Start the API server:
-    ```bash
-    uvicorn app.main:app --reload --port 8000
-    ```
-    The API docs will be available at `http://localhost:8000/docs`.
+## 8. Agent Design
 
-### Frontend Setup
+The system consists of specialized agents coordinated by `langgraph`:
 
-1.  Navigate to the root directory (where package.json is):
-    ```bash
-    cd ..  # If you are in backend/
-    ```
+*   **Planner Agent**:
+    *   **Input**: Raw user query.
+    *   **Role**: Decomposes the query into a list of executed steps.
+    *   **Output**: A structured plan (e.g., `["Search for X", "Calculate Y", "Compare Z"]`) injected into the system prompt.
 
-2.  Install dependencies:
-    ```bash
-    npm install
-    ```
+*   **Orchestrator Agent**:
+    *   **Input**: History of messages + Current Plan.
+    *   **Role**: The "Executor". Decides whether to call a tool or generate a final answer.
+    *   **Tools**: Access to `retrieve_tool`, `arxiv_tool`, `python_interpreter`, and `web_search`.
 
-3.  Start the development server:
-    ```bash
-    npm run dev
-    ```
+*   **Graders (Critics)**:
+    *   **Retrieval Grader**: Binary 'yes/no' on whether a document helps answer the specific question.
+    *   **Hallucination Grader**: 'yes/no' on whether the final generation is fully supported by the retrieved set.
+    *   **Answer Grader**: 'yes/no' on whether the grounded answer actually satisfies the user's intent.
 
-4.  Open the application:
-    Visit `http://localhost:3000` in your browser.
+## 9. Verification & Hallucination Control
 
-## API Endpoints
+This is the core reliability mechanism. Most RAG systems trust the LLM's final generation. We do not.
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| **POST** | `/api/ingest/upload` | Upload and process a PDF file |
-| **POST** | `/api/chat/query` | Send a query to the RAG system |
-| **GET** | `/api/papers/list` | List all uploaded papers |
-| **GET** | `/api/papers/{id}/chunk` | Get parsed chunks for a specific paper |
-| **GET** | `/api/graph/{id}` | Get knowledge graph data for a paper |
-| **GET** | `/health` | Check API status |
+1.  **The Hallucination Test**: After the Orchestrator generates an answer, the **Hallucination Grader** compares it against the set of retrieved documents. 
+    *   *Logic*: If the answer contains specific claims (numbers, citations) not present in the documents, it is marked as a hallucination.
+    *   *Action*: The system rejects the answer and typically retries with a penalty or stricter prompt.
+    
+2.  **The Relevance Test**: If the Hallucination Test passes, the **Answer Grader** checks if the answer references the user's original question.
+    *   *Why?* An answer can be factually true (grounded) but irrelevant (e.g., answering "The sky is blue" to "What is the accuracy?").
 
-## Usage Guide
+## 10. Memory & State Management
 
-1.  **Upload**: Click the "Upload PDF" button in the sidebar to add research papers. Wait for the processing to complete.
-2.  **Explore**: Use the "Graph" tab to see extracted concepts and how they connect.
-3.  **Chat**: Type your research question in the chat bar.
-    -   *Example*: "What method did the authors use for evaluation?"
-    -   *Example*: "Compare the results of model A and model B."
-4.  **Verify**: Click on any `[Source 1]` citation in the answer to open the PDF at the exact page where the information was found.
+*   **State Schema**: The `AgentState` tracks the conversation history (`messages`), the `plan`, and verification flags (`is_supported`, `retry_count`).
+*   **Checkpointing**: Uses `langgraph.checkpoint.memory.MemorySaver` to persist state between turns, enabling the user to ask follow-up questions without losing context of the analyzed papers.
 
-## License
-MIT
+## 11. Why This System Is Useful
+
+*   **Systematic Literature Review**: Can ingest 20 papers and answer "Compare the learning rates used in all method sections," which manual reading might miss.
+*   **False Positive Reduction**: The verification loop actively fights the tendency of LLMs to "pleaase the user" with invented facts.
+*   **Math-Awareness**: Unlike text-only RAG, the Python tool allows for verifying statistical significance or re-plotting data directly from the paper's descriptions.
+
+## 12. Evaluation Strategy
+
+To maintain research-grade standards, we evaluate on:
+*   **Faithfulness**: % of claims in the answer supported by citations.
+*   **Answer Relevancy**: Semantic similarity between the generated answer and the core question query.
+*   **Context Precision**: How many of the retrieved chunks were actually useful (measured by the Retrieval Grader's acceptance rate).
+
+## 13. Limitations & Open Research Problems
+
+*   **Table Parsing**: PDF tables are currently ingested as raw text. Complex multi-column tables may be poorly semantically chunked.
+*   **Multi-Modal Graphs**: The system does not yet "see" figures or charts, relying only on captions and textual descriptions.
+*   **Citation Graphs**: We rely on semantic similarity, not the explicit citation network (who cited whom), which is a valuable signal for paper relevance.
+
+## 14. Upcoming Features
+
+*   **Graph-RAG Integration**: Building a Knowledge Graph of entities (Authors, Methods, Metrics) to traverse relationships explicitly.
+*   **Visual-RAG**: Using Multi-Modal LLMs (like GPT-4o) to interpret plots and diagrams directly.
+*   **Latex Reconstruction**: Rebuilding exact formulas from PDF text for higher-fidelity math answers.
+
+## 15. How to Run
+
+1.  **Environment Setup**: Clone the repo and install dependencies (poetry or pip).
+2.  **Configuration**: Create a `.env` file with your `OPENAI_API_KEY` and optional `SERPER_API_KEY`.
+3.  **Database Init**: The system will automatically create a local `chroma_db` on first run.
+4.  **Launch**:
+    *   Backend: Run the FastAPI server via `uvicorn`.
+    *   Frontend: Run the React interface via `npm start`.
+
+## 16. Citation
+
+If you use this architecture in your research, please cite:
+
+```bibtex
+@software{DeepAgenticRAG2026,
+  author = {Project Contributors},
+  title = {Deep Agentic RAG: A Self-Correcting Research Assistant},
+  year = {2026},
+  publisher = {GitHub},
+  url = {https://github.com/dineshmc1/rag-based-research-paper-assistant}
+}
+```
