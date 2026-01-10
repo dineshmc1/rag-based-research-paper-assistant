@@ -25,7 +25,8 @@ This system implements a **"Plan-Execute-Verify"** architecture inspired by rece
     1.  **Retrieval Grading**: Filters irrelevant noise before it reaches the context window.
     2.  **Hallucination Grading**: Verifies that every claim in the answer is supported by the retrieved context.
     3.  **Answer Grading**: Ensures the verified answer actually addresses the user's core question.
-*   **Hybrid Tool Use**: Seamlessly switches between local vector search, arXiv for external literature, and a Python sandbox for data analysis.
+*   **Text-in, Artifact-out Architecture**: Validates and generates visual artifacts (plots, charts) by executing Python code, persisting files, and returning structured paths, moving beyond simple text-only responses.
+*   **Hybrid Tool Use**: Seamlessly switches between local vector search, arXiv for external literature, and a Python sandbox for data analysis and visualization.
 
 ## 3. High-Level System Architecture
 
@@ -45,10 +46,14 @@ graph TD
         Planner --> Orchestrator[Orchestrator Agent]
         Orchestrator --> |Route| Tools
         
+        Orchestrator --> |Code Execution| PythonTool[Python Interpreter]
+        PythonTool --> |Generate PNG/HTML| Disk[(Local Storage)]
+        PythonTool --> |Return File Path| Orchestrator
+        
         subgraph "Tool Suite"
             Tools --> RAG[Retrieve Tool]
             Tools --> Arxiv[ArXiv Tool]
-            Tools --> Code[Python Interpreter]
+            Tools --> Nitrogen[Python Interpreter]
             Tools --> Sum[Summarize Section]
             
             RAG --> Rerank[Cross-Encoder Reranker]
@@ -142,13 +147,13 @@ The system consists of specialized agents coordinated by `langgraph`:
 
 *   **Planner Agent**:
     *   **Input**: Raw user query.
-    *   **Role**: Decomposes the query into a list of executed steps.
-    *   **Output**: A structured plan (e.g., `["Search for X", "Calculate Y", "Compare Z"]`) injected into the system prompt.
+    *   **Role**: Decomposes the query into a list of executed steps. Recognizes requests for visualization and schedules data extraction + plotting steps accordingly.
+    *   **Output**: A structured plan (e.g., `["Search for X", "Extract Data", "Generate Bar Plot", "Compare Z"]`) injected into the system prompt.
 
 *   **Orchestrator Agent**:
     *   **Input**: History of messages + Current Plan.
-    *   **Role**: The "Executor". Decides whether to call a tool or generate a final answer.
-    *   **Tools**: Access to `retrieve_tool`, `arxiv_tool`, `python_interpreter`, and `web_search`.
+    *   **Role**: The "Executor". Decides whether to call a tool or generate a final answer. Handles artifact generation references (images) from tools.
+    *   **Tools**: Access to `retrieve_tool`, `arxiv_tool`, `python_interpreter` (with file persistence), and `web_search`.
 
 *   **Graders (Critics)**:
     *   **Retrieval Grader**: Binary 'yes/no' on whether a document helps answer the specific question.
@@ -168,7 +173,7 @@ This is the core reliability mechanism. Most RAG systems trust the LLM's final g
 
 ## 10. Memory & State Management
 
-*   **State Schema**: The `AgentState` tracks the conversation history (`messages`), the `plan`, and verification flags (`is_supported`, `retry_count`).
+*   **State Schema**: The `AgentState` tracks the conversation history (`messages`), the `plan`, `artifacts` (generated plots/files), and verification flags (`is_supported`, `retry_count`).
 *   **Checkpointing**: Uses `langgraph.checkpoint.memory.MemorySaver` to persist state between turns, enabling the user to ask follow-up questions without losing context of the analyzed papers.
 
 ## 11. Why This System Is Useful
