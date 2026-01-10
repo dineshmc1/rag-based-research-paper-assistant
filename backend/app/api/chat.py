@@ -70,13 +70,31 @@ async def query_papers(request: ChatRequest) -> ChatResponse:
                 score = float(doc.metadata.get("score", 0.0))
             except (ValueError, TypeError):
                 score = 0.0
-                
+            
+            # Get page number - use page_number key, fallback to parsing source
+            page = doc.metadata.get("page_number")
+            if page is None:
+                # Try to parse from source string "Page X - Section Y"
+                source_str = doc.metadata.get("source", "")
+                if "Page " in source_str:
+                    try:
+                        page = int(source_str.split("Page ")[1].split(" -")[0])
+                    except (ValueError, IndexError):
+                        page = None
+            
+            # Get section
+            section = doc.metadata.get("section")
+            if not section:
+                source_str = doc.metadata.get("source", "")
+                if "Section " in source_str:
+                    section = source_str.split("Section ")[-1]
+                    
             citation = {
-                "paper": doc.metadata.get("paper_id", "unknown"),
-                "page": doc.metadata.get("page", 1),
-                "chunk_id": doc.metadata.get("chunk_id", f"chunk_{i}"),
+                "paper": doc.metadata.get("paper_id") or "unknown",
+                "page": page,
+                "chunk_id": doc.metadata.get("chunk_id") or f"chunk_{i}",
                 "confidence": score,
-                "section": doc.metadata.get("section", "N/A"),
+                "section": section,
                 "content": doc.page_content # Keep content just in case
             }
             citations.append(citation)

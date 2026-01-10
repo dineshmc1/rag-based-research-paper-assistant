@@ -79,13 +79,24 @@ export function AnswerBlock({ answer }: AnswerBlockProps) {
                 <div key={`${citation.chunk_id}-${idx}`} className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 text-sm">
                   <span className="font-medium text-muted-foreground">[{idx + 1}]</span>
                   <div className="flex-1">
-                    <span className="text-foreground">Page {citation.page}</span>
-                    <span className="text-muted-foreground mx-2">•</span>
-                    <span className="text-muted-foreground">{citation.section}</span>
+                    {citation.page != null && (
+                      <span className="text-foreground">Page {citation.page}</span>
+                    )}
+                    {citation.page != null && citation.section && (
+                      <span className="text-muted-foreground mx-2">•</span>
+                    )}
+                    {citation.section && (
+                      <span className="text-muted-foreground">{citation.section}</span>
+                    )}
+                    {!citation.page && !citation.section && (
+                      <span className="text-muted-foreground italic">Source document</span>
+                    )}
                   </div>
-                  <Badge variant="secondary" className="text-xs">
-                    {citation.confidence ? Math.round(citation.confidence * 100) : 0}%
-                  </Badge>
+                  {citation.confidence != null && citation.confidence > 0 && (
+                    <Badge variant="secondary" className="text-xs">
+                      {Math.round(citation.confidence * 100)}%
+                    </Badge>
+                  )}
                 </div>
               ))}
             </div>

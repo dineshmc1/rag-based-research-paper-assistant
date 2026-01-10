@@ -44,6 +44,8 @@ def retrieve_tool(query: str, paper_id: Optional[str] = None) -> List[Dict[str, 
         results.append({
             "content": chunk["text"],
             "source": f"Page {chunk['page_number']} - Section {chunk['section']}",
+            "page_number": chunk["page_number"],
+            "section": chunk["section"],
             "paper_id": chunk["paper_id"],
             "score": score,
             "chunk_id": chunk["chunk_id"]

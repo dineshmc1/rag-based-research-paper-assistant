@@ -80,7 +80,14 @@ def grade_documents(state: AgentState):
     elif isinstance(params, list):
         for item in params:
             content = item.get("content", str(item))
-            metadata = {"source": item.get("source", "Retrieved Tool")}
+            metadata = {
+                "source": item.get("source", "Retrieved Tool"),
+                "page_number": item.get("page_number"),
+                "section": item.get("section"),
+                "paper_id": item.get("paper_id"),
+                "chunk_id": item.get("chunk_id"),
+                "score": item.get("score", 0.0)
+            }
             retrieved_docs.append(Document(page_content=content, metadata=metadata))
 
     # Scenario: Fallback for plain text (the most common case for search/arxiv)

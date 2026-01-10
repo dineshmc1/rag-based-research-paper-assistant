@@ -6,7 +6,7 @@ import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { Send, Loader2 } from "lucide-react"
+import { Send, Loader2, FileText, BarChart3 } from "lucide-react"
 import { AnswerBlock } from "@/components/answer-block"
 import { useWorkspace } from "@/lib/workspace-store"
 
@@ -25,6 +25,7 @@ export function WorkspaceChatPanel({ onAnswerReceived }: WorkspaceChatPanelProps
   const { activeFolderId, activeChatId, getActiveFolder, getActiveChat, updateChatMessages } = useWorkspace()
   const [input, setInput] = useState("")
   const [loading, setLoading] = useState(false)
+  const [executionMode, setExecutionMode] = useState<"text" | "python">("text")
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const activeFolder = getActiveFolder()
@@ -64,6 +65,7 @@ export function WorkspaceChatPanel({ onAnswerReceived }: WorkspaceChatPanelProps
           query: question,
           paper_ids: pdfIds,
           include_reasoning: false,
+          execution_mode: executionMode,
         }),
       })
 
@@ -148,11 +150,36 @@ export function WorkspaceChatPanel({ onAnswerReceived }: WorkspaceChatPanelProps
       {/* Input */}
       <div className="border-t border-border px-8 py-6 bg-card">
         <form onSubmit={handleSubmit} className="max-w-4xl mx-auto">
+          {/* Mode Selector */}
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-sm text-muted-foreground mr-2">Mode:</span>
+            <Button
+              type="button"
+              variant={executionMode === "text" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setExecutionMode("text")}
+              className="gap-1.5"
+            >
+              <FileText className="h-3.5 w-3.5" />
+              Text
+            </Button>
+            <Button
+              type="button"
+              variant={executionMode === "python" ? "default" : "outline"}
+              size="sm"
+              onClick={() => setExecutionMode("python")}
+              className="gap-1.5"
+            >
+              <BarChart3 className="h-3.5 w-3.5" />
+              Visualization
+            </Button>
+          </div>
+
           <div className="relative">
             <Textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask a question about your research papers..."
+              placeholder={executionMode === "python" ? "Describe the visualization you need (e.g., 'plot accuracy metrics')..." : "Ask a question about your research papers..."}
               className="pr-12 resize-none min-h-[60px] text-base"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
