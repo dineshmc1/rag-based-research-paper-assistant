@@ -94,7 +94,9 @@ def python_interpreter_tool(code: str) -> str:
     try:
         import sys
         import io
-        import base64
+        import uuid
+        import json
+        import os
         from io import StringIO
         
         # Capture stdout
@@ -105,7 +107,6 @@ def python_interpreter_tool(code: str) -> str:
         local_vars = {}
         
         # Relaxed globals with common data science libs
-        # We try to import them dynamically to avoid crashing if not installed
         allowed_modules = {}
         try:
             import math
@@ -126,6 +127,8 @@ def python_interpreter_tool(code: str) -> str:
             
         try:
             import matplotlib.pyplot as plt
+            # Set non-interactive backend
+            plt.switch_backend('Agg')
             allowed_modules["plt"] = plt
             allowed_modules["matplotlib"] = plt
         except ImportError: pass
@@ -137,21 +140,42 @@ def python_interpreter_tool(code: str) -> str:
         output_str = redirected_output.getvalue()
         
         # Check for plots if matplotlib was available
+        artifact_info = None
         if "plt" in allowed_modules:
             plt = allowed_modules["plt"]
             if plt.get_fignums():
-                buf = io.BytesIO()
-                plt.savefig(buf, format="png")
-                buf.seek(0)
-                img_str = base64.b64encode(buf.read()).decode("utf-8")
+                # Generate unique filename
+                filename = f"plot_{uuid.uuid4()}.png"
+                # Ensure directory exists
+                os.makedirs("backend/static/exports", exist_ok=True)
+                filepath = f"backend/static/exports/{filename}"
+                
+                plt.savefig(filepath, format="png")
                 plt.close('all')
-                output_str += f"\n\n![Generated Plot](data:image/png;base64,{img_str})"
+                
+                # Create artifact info
+                artifact_info = {
+                    "type": "image",
+                    "path": f"/static/exports/{filename}", # URL path for frontend
+                    "name": filename
+                }
+                output_str += f"\n\n[Plot generated and saved to {filepath}]"
         
         sys.stdout = old_stdout
-        return output_str if output_str.strip() else "Code executed successfully (no output)."
+        
+        # Return structured JSON
+        result = {
+            "text_summary": output_str if output_str.strip() else "Code executed successfully (no output).",
+            "artifact": artifact_info
+        }
+        
+        return json.dumps(result)
         
     except Exception as e:
-        return f"Error executing code: {e}"
+        return json.dumps({
+            "text_summary": f"Error executing code: {e}",
+            "artifact": None
+        })
 
 @tool
 def summarize_section_tool(section_name: str, paper_id: Optional[str] = None) -> str:

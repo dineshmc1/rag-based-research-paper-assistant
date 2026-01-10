@@ -20,5 +20,8 @@ class AgentState(TypedDict):
     reasoning_trace: List[str]
     citations: List[Dict[str, Any]]
     
+    # Generated artifacts (images, files)
+    artifacts: List[Dict[str, Any]]
+    
     # Planning
     plan: List[str]

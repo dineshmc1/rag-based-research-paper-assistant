@@ -21,6 +21,7 @@ class ChatResponse(BaseModel):
     citations: List[Dict]
     retrieved_chunks: List[Dict]
     concepts: List[str]
+    artifacts: Optional[List[Dict]] = None
     reasoning: Optional[Dict] = None
 
 @router.post("/query", response_model=ChatResponse)
@@ -40,6 +41,7 @@ async def query_papers(request: ChatRequest) -> ChatResponse:
             "documents": [],
             "reasoning_trace": [],
             "citations": [],
+            "artifacts": [],
             "retry_count": 0,
             "plan": []
         }
@@ -53,9 +55,11 @@ async def query_papers(request: ChatRequest) -> ChatResponse:
         last_message = messages[-1]
         answer = last_message.content
         state_docs = final_state.get("documents", [])
+        state_artifacts = final_state.get("artifacts", [])
         citations = []
         retrieved_chunks = []
 
+        # ... (citation processing) ...
         for i, doc in enumerate(state_docs):
             # Create the citation for the frontend
             # Ensure safe type conversion for confidence
@@ -82,11 +86,18 @@ async def query_papers(request: ChatRequest) -> ChatResponse:
         
         concepts = extract_concepts(answer)
         
+        # Append artifacts to answer if present (for backward compatibility / easy rendering)
+        if state_artifacts:
+            for art in state_artifacts:
+                if art["type"] == "image":
+                    answer += f"\n\n![{art['name']}]({art['path']})"
+        
         return ChatResponse(
             answer=answer,
             citations=citations, 
             retrieved_chunks=retrieved_chunks,
             concepts=concepts,
+            artifacts=state_artifacts,
             reasoning={"steps": final_state.get("plan", [])}
         )
         

@@ -5,6 +5,8 @@ from langgraph.graph import StateGraph, END, START
 from langgraph.prebuilt import ToolNode
 from langgraph.checkpoint.memory import MemorySaver
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.documents import Document
+import json
 
 from app.core.config import settings
 from app.agents.state import AgentState
@@ -44,59 +46,56 @@ def grade_documents(state: AgentState):
     messages = state["messages"]
     last_message = messages[-1]
     
-    # Check if last message is a ToolMessage
     if not hasattr(last_message, "tool_call_id"):
-        # This shouldn't happen in the current edge configuration but good safety
         return state
         
     question = messages[0].content
-    docs = last_message.content # String content from valid tool
+    docs = last_message.content 
     
-    # We might need to handle the case where content is a list of dicts (from our retrieve_tool)
-    # LangGraph ToolNode serializes it to a string usually.
-    # Our retrieve_tool returns a list of dicts. 
-    
-    # Simplification: The tool output might be a JSON string repr of the list.
-    # We will assume "documents" are relevant if at least one passes the grader.
-    
-    # Ideally, we iterate over each doc.
-    # For this MVP, let's treat the whole context as one block to grade or parse it.
-    
+    # 1. First, try to parse JSON if the tool returns structured data
+    params = None
+    try:
+        params = json.loads(docs)
+    except (json.JSONDecodeError, TypeError):
+        # It's just a plain string (Arxiv, Web Search, etc.)
+        params = None
+
+    updates = {}
+    retrieved_docs = []
+
+    # Scenario: Python Interpreter or Structured Tool Output
+    if isinstance(params, dict) and "artifact" in params:
+        artifact = params.get("artifact")
+        text_summary = params.get("text_summary", "")
+        if artifact:
+            current_artifacts = state.get("artifacts") or []
+            updates["artifacts"] = current_artifacts + [artifact]
+        
+        retrieved_docs.append(Document(
+            page_content=text_summary, 
+            metadata={"source": "Python Interpreter", "artifact": artifact}
+        ))
+
+    # Scenario: Retrieve Tool Output (list of dicts)
+    elif isinstance(params, list):
+        for item in params:
+            content = item.get("content", str(item))
+            metadata = {"source": item.get("source", "Retrieved Tool")}
+            retrieved_docs.append(Document(page_content=content, metadata=metadata))
+
+    # Scenario: Fallback for plain text (the most common case for search/arxiv)
+    else:
+        retrieved_docs.append(Document(page_content=docs, metadata={"source": "Tool Output"}))
+
+    # 2. Run the grader on the combined text or first doc
+    # Using the string 'docs' directly for the grader is usually fine
     score = retrieval_grader.invoke({"question": question, "document": docs})
     grade = score.binary_score
     
     if grade == "yes":
-        from langchain_core.documents import Document
-        import json
-        
-        try:
-            # Attempt to parse json content from tool
-            params = json.loads(docs)
-            if isinstance(params, list):
-                retrieved_docs = []
-                for item in params:
-                    # Retrieve tool returns strict structure
-                    content = item.get("content", str(item))
-                    # Map metadata
-                    metadata = {
-                        "source": item.get("source", "Retrieved Tool"),
-                        "page": item.get("source", "").replace("Page ", "").split(" -")[0] if "Page " in item.get("source", "") else None,
-                        "paper_id": item.get("paper_id"),
-                        "chunk_id": item.get("chunk_id"),
-                        "score": item.get("score")
-                    }
-                    retrieved_docs.append(Document(page_content=content, metadata=metadata))
-                
-                return {"is_relevant": True, "documents": retrieved_docs}
-            else:
-                # Not a list, maybe a single object or just string
-                retrieved_doc = Document(page_content=docs, metadata={"source": "Retrieved Tool"})
-                return {"is_relevant": True, "documents": [retrieved_doc]}
-                
-        except json.JSONDecodeError:
-             # Fallback for plain text tools (arxiv, search)
-            retrieved_doc = Document(page_content=docs, metadata={"source": "Retrieved Tool"})
-            return {"is_relevant": True, "documents": [retrieved_doc]}
+        updates["is_relevant"] = True
+        updates["documents"] = retrieved_docs
+        return updates
     else:
         print("---DECISION: DOCS NOT RELEVANT---")
         return {"is_relevant": False}
@@ -218,7 +217,7 @@ structured_llm_planner = llm.with_structured_output(Plan)
 
 planner_prompt = ChatPromptTemplate.from_messages(
     [
-        ("system", "For the given objective, come up with a simple step by step plan. \n This plan should involve using tools like retrieve_tool (for searching), summarize_section_tool (for specific sections), or python_interpreter_tool (for math). \n Be concise."),
+        ("system", "For the given objective, come up with a simple step by step plan. \n This plan should involve using tools like retrieve_tool (for searching), summarize_section_tool (for specific sections), or python_interpreter_tool (for math/visualization). \n\n If the user asks for a visualization (plot, graph, chart): \n 1. Search for the data/metrics. \n 2. Use python_interpreter_tool to extract the values and generate a plot using matplotlib. The tool will handle saving the file. \n\n Be concise."),
         ("human", "{objective}")
     ]
 )

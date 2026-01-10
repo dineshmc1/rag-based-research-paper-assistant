@@ -5,6 +5,14 @@ from app.core.config import settings
 
 app = FastAPI(title="Research RAG Assistant", version="1.0.0")
 
+# Mount static directory
+from fastapi.staticfiles import StaticFiles
+import os
+
+# Ensure static directory exists
+os.makedirs("backend/static", exist_ok=True)
+app.mount("/static", StaticFiles(directory="backend/static"), name="static")
+
 # CORS middleware for frontend
 app.add_middleware(
     CORSMiddleware,
