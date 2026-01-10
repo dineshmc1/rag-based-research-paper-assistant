@@ -144,6 +144,20 @@ def grade_generation_v_documents_and_question(state: AgentState):
     
     docs = "\n\n".join(docs_list)
             
+    mode = state.get("execution_mode", "text")
+    
+    if mode == "python":
+         print("---CHECK ARTIFACTS (PYTHON MODE)---")
+         artifacts = state.get("artifacts", [])
+         if not artifacts:
+             print("---DECISION: FAILURE - NO ARTIFACT IN PYTHON MODE---")
+             return {"is_supported": False, "retry_count": state.get("retry_count", 0) + 1}
+         else:
+             print("---DECISION: ARTIFACT GENERATED---")
+             # Ideally we would grade the artifact here. For now, existence is success.
+             return {"is_supported": True}
+
+    # TEXT MODE (Normal Path)
     # Grades
     hallucination_score = hallucination_grader.invoke({"documents": docs, "generation": generation})
     grade = hallucination_score.binary_score
@@ -232,11 +246,22 @@ def plan_node(state: AgentState):
     # If we already have a plan (e.g. from retry), maybe we keep it? 
     # For now, simplistic approach: always plan at start.
     
-    plan_result = planner.invoke({"objective": question})
+
+    
+    # Mode-specific constraints
+    mode = state.get("execution_mode", "text")
+    if mode == "text":
+        objective_msg = f"{question} \n\n CONSTRAINT: You are in TEXT_MODE. Do NOT use the python_interpreter_tool. Provide a text-only answer based on retrieval."
+    elif mode == "python":
+        objective_msg = f"{question} \n\n CONSTRAINT: You are in PYTHON_INTERPRETER_MODE. You MUST use the python_interpreter_tool to generate an artifact (plot, chart, etc.). If data is missing, fail gracefully. Do NOT provide a text-only answer without an attempt to visualize."
+    else:
+        objective_msg = question
+
+    plan_result = planner.invoke({"objective": objective_msg})
     
     # Create a system message with the plan to guide the agent
     steps_str = "\n".join([f"{i+1}. {step}" for i, step in enumerate(plan_result.steps)])
-    sys_msg = SystemMessage(content=f"You are a helpful research assistant. \n Here is your plan: \n {steps_str} \n\n Follow this plan to answer the user's question. \n Use your tools.")
+    sys_msg = SystemMessage(content=f"You are a helpful research assistant. \n Here is your plan: \n {steps_str} \n\n Follow this plan to answer the user's question. \n Use your tools. \n Execution Mode: {mode.upper()}.")
     
     # We update messages to include this guidance
     return {"plan": plan_result.steps, "messages": [sys_msg]}

@@ -15,6 +15,7 @@ class ChatRequest(BaseModel):
     query: str
     paper_id: Optional[str] = None
     include_reasoning: bool = False
+    execution_mode: str = "text" # "text" or "python"
 
 class ChatResponse(BaseModel):
     answer: str
@@ -42,6 +43,8 @@ async def query_papers(request: ChatRequest) -> ChatResponse:
             "reasoning_trace": [],
             "citations": [],
             "artifacts": [],
+            "execution_mode": request.execution_mode,
+            "execution_status": "started",
             "retry_count": 0,
             "plan": []
         }

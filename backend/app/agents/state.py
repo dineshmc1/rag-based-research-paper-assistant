@@ -1,4 +1,4 @@
-from typing import TypedDict, Annotated, List, Dict, Any
+from typing import TypedDict, Annotated, List, Dict, Any, Literal
 from langgraph.graph.message import add_messages
 from langchain_core.messages import BaseMessage
 
@@ -22,6 +22,10 @@ class AgentState(TypedDict):
     
     # Generated artifacts (images, files)
     artifacts: List[Dict[str, Any]]
+    
+    # Execution Mode Control
+    execution_mode: Literal["text", "python"]
+    execution_status: str
     
     # Planning
     plan: List[str]
