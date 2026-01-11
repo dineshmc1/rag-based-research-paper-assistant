@@ -267,8 +267,20 @@ def grade_generation_v_documents_and_question(state: AgentState):
     Determines whether the generation is grounded in the document and answers question.
     """
     print("---CHECK HALLUCINATIONS---")
-    question = state["messages"][0].content
+    
+    # 1. Get the most relevant question (could be a rewritten one)
     messages = state["messages"]
+    question = messages[0].content
+    for msg in reversed(messages):
+        if isinstance(msg, HumanMessage):
+            question = msg.content
+            break
+            
+    # 2. Add paper context if "this" or "paper" is mentioned, to help the grader understand
+    paper_ids = state.get("paper_ids", [])
+    if paper_ids and ("this" in question.lower() or "paper" in question.lower()):
+        question += f" (Context: referencing uploaded papers {paper_ids})"
+        
     last_message = messages[-1]
     generation = last_message.content
     
