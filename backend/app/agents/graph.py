@@ -15,8 +15,23 @@ from app.agents.graders import retrieval_grader, hallucination_grader, answer_gr
 
 # --- LLM & Tools ---
 tools = [retrieve_tool, arxiv_tool, python_interpreter_tool, summarize_section_tool, web_search_tool]
-llm = ChatOpenAI(model=settings.OPENAI_MODEL, base_url=settings.OPENAI_API_BASE, temperature=0)
-llm_with_tools = llm.bind_tools(tools)
+
+# Claude for tool calling (better at function calls)
+llm_tools = ChatOpenAI(
+    model=settings.TOOL_MODEL, 
+    base_url=settings.TOOL_API_BASE, 
+    api_key=settings.OPENAI_API_KEY,  # OpenRouter uses same API key format
+    temperature=0
+)
+llm_with_tools = llm_tools.bind_tools(tools)
+
+# GPT for text generation and grading
+llm = ChatOpenAI(
+    model=settings.OPENAI_MODEL, 
+    base_url=settings.OPENAI_API_BASE, 
+    api_key=settings.OPENAI_API_KEY,
+    temperature=0
+)
 
 # --- Nodes ---
 
@@ -354,18 +369,20 @@ def plan_node(state: AgentState):
     print("---PLANNING---")
     messages = state["messages"]
     question = messages[0].content
+    paper_ids = state.get("paper_ids", [])
     
-    # If we already have a plan (e.g. from retry), maybe we keep it? 
-    # For now, simplistic approach: always plan at start.
-    
-
+    # Build paper context message
+    if paper_ids:
+        paper_context = f"You have {len(paper_ids)} research paper(s) uploaded. Use the retrieve_tool to search these papers and answer questions about them."
+    else:
+        paper_context = "No papers are currently uploaded. You can use arxiv_tool or web_search_tool for external research."
     
     # Mode-specific constraints
     mode = state.get("execution_mode", "text")
     if mode == "text":
-        objective_msg = f"{question} \n\n CONSTRAINT: You are in TEXT_MODE. Do NOT use the python_interpreter_tool. Provide a text-only answer based on retrieval."
+        objective_msg = f"{question} \n\n CONTEXT: {paper_context} \n\n CONSTRAINT: You are in TEXT_MODE. Do NOT use the python_interpreter_tool. Provide a text-only answer based on retrieval."
     elif mode == "python":
-        objective_msg = f"{question} \n\n CONSTRAINT: You are in PYTHON_INTERPRETER_MODE. You MUST use the python_interpreter_tool to generate an artifact (plot, chart, etc.). If data is missing, fail gracefully. Do NOT provide a text-only answer without an attempt to visualize."
+        objective_msg = f"{question} \n\n CONTEXT: {paper_context} \n\n CONSTRAINT: You are in PYTHON_INTERPRETER_MODE. You MUST use the python_interpreter_tool to generate an artifact (plot, chart, etc.). First use retrieve_tool to get data from the papers, then visualize it."
     else:
         objective_msg = question
 
@@ -373,7 +390,7 @@ def plan_node(state: AgentState):
     
     # Create a system message with the plan to guide the agent
     steps_str = "\n".join([f"{i+1}. {step}" for i, step in enumerate(plan_result.steps)])
-    sys_msg = SystemMessage(content=f"You are a helpful research assistant. \n Here is your plan: \n {steps_str} \n\n Follow this plan to answer the user's question. \n Use your tools. \n Execution Mode: {mode.upper()}.")
+    sys_msg = SystemMessage(content=f"You are a helpful research assistant. \n\n PAPER CONTEXT: {paper_context} \n\n Here is your plan: \n {steps_str} \n\n Follow this plan to answer the user's question. \n Use your tools - especially retrieve_tool to search the uploaded papers. \n Execution Mode: {mode.upper()}.")
     
     # We update messages to include this guidance
     return {"plan": plan_result.steps, "messages": [sys_msg]}

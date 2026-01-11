@@ -6,6 +6,9 @@ class AgentState(TypedDict):
     """The state of the agent in the LangGraph."""
     messages: Annotated[List[BaseMessage], add_messages]
     
+    # Paper context - which papers to search
+    paper_ids: List[str]
+    
     # Retrieved documents context
     documents: List[Dict[str, Any]]
     

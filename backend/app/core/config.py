@@ -5,10 +5,14 @@ class Settings(BaseSettings):
 
     anonymized_telemetry: bool = False  
     
-    # OpenAI
+    # OpenAI / OpenRouter for Text Generation
     OPENAI_API_KEY: str
     OPENAI_API_BASE: str = "https://api.openai.com/v1"
     OPENAI_MODEL: str = "gpt-4.1-mini"
+    
+    # Tool-calling model (can be different from text model)
+    TOOL_MODEL: str = "anthropic/claude-3.5-haiku"
+    TOOL_API_BASE: str = "https://openrouter.ai/api/v1"
     
     # External Tools
     SERPER_API_KEY: Optional[str] = None

@@ -4,7 +4,7 @@ from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 from app.core.config import settings
 
-llm = ChatOpenAI(model=settings.OPENAI_MODEL, base_url=settings.OPENAI_API_BASE, temperature=0)
+llm = ChatOpenAI(model=settings.OPENAI_MODEL, base_url=settings.OPENAI_API_BASE, api_key=settings.OPENAI_API_KEY, temperature=0)
 
 # --- Retrieval Grader ---
 class GradeDocuments(BaseModel):

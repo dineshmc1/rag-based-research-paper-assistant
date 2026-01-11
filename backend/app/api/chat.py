@@ -13,7 +13,7 @@ router = APIRouter()
 
 class ChatRequest(BaseModel):
     query: str
-    paper_id: Optional[str] = None
+    paper_ids: List[str] = []  # List of paper IDs to search
     include_reasoning: bool = False
     execution_mode: str = "text" # "text" or "python"
 
@@ -37,6 +37,7 @@ async def query_papers(request: ChatRequest) -> ChatResponse:
         # Initial state
         initial_state = {
             "messages": [HumanMessage(content=request.query)],
+            "paper_ids": request.paper_ids,  # Papers to search
             "is_relevant": True,
             "is_supported": True,
             "documents": [],
@@ -49,8 +50,11 @@ async def query_papers(request: ChatRequest) -> ChatResponse:
             "plan": []
         }
         
-        # Invoke agent
-        config = {"configurable": {"thread_id": "1"}} # TODO: Use session ID
+        # Invoke agent with increased recursion limit
+        config = {
+            "configurable": {"thread_id": "1"},  # TODO: Use session ID
+            "recursion_limit": 50  # Prevent GraphRecursionError
+        }
         final_state = await agent_app.ainvoke(initial_state, config=config)
         
         # Extract answer
