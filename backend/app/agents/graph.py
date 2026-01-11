@@ -149,7 +149,14 @@ def grade_documents(state: AgentState):
         updates["documents"] = retrieved_docs
         return updates
 
-    # 3. Run the grader on the combined text or first doc
+    # 3. If the source is Arxiv, skip relevance grading - we trust the search
+    if hasattr(last_message, "name") and last_message.name and "arxiv" in last_message.name.lower():
+        print("---DECISION: ARXIV SOURCE - SKIPPING RELEVANCE CHECK---")
+        updates["is_relevant"] = True
+        updates["documents"] = retrieved_docs
+        return updates
+
+    # 4. Run the grader on the combined text or first doc
     # Using the string 'docs' directly for the grader is usually fine
     score = retrieval_grader.invoke({"question": question, "document": docs})
     grade = score.binary_score
@@ -306,16 +313,9 @@ def grade_generation_v_documents_and_question(state: AgentState):
              return {"is_supported": True}
 
     # TEXT MODE (Normal Path)
-    # Check if arxiv was used - if so, we trust the output more (it's external data) and skip strict hallucination check
-    arxiv_used = any("arxiv" in msg.name.lower() for msg in messages if hasattr(msg, "name") and msg.name)
-    
-    # Grades
-    if arxiv_used:
-        print("---ARXIV USED: SKIPPING STRICT HALLUCINATION CHECK---")
-        grade = "yes"
-    else:
-        hallucination_score = hallucination_grader.invoke({"documents": docs, "generation": generation})
-        grade = hallucination_score.binary_score
+    # Skipping hallucination check as per user request to trust the agent's output logic
+    print("---SKIPPING HALLUCINATION CHECK---")
+    grade = "yes"
     
     if grade == "yes":
         print("---DECISION: GENERATION IS GROUNDED---")
