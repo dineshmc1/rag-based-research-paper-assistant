@@ -4,7 +4,7 @@ from langchain_openai import ChatOpenAI
 from pydantic import BaseModel, Field
 from app.core.config import settings
 
-llm = ChatOpenAI(model=settings.OPENAI_MODEL, base_url=settings.OPENAI_API_BASE, api_key=settings.OPENAI_API_KEY, temperature=0)
+llm = ChatOpenAI(model=settings.TOOL_MODEL, base_url=settings.TOOL_API_BASE, api_key=settings.OPENAI_API_KEY, temperature=0)
 
 # --- Retrieval Grader ---
 class GradeDocuments(BaseModel):
@@ -61,7 +61,8 @@ answer_system_prompt = """
 You are a grader assessing whether an answer addresses the user's question.
 
 - Grade 'yes' if the answer provides the requested information OR if it clearly explains that the information is not available in the provided documents.
-- Grade 'no' if the answer is irrelevant or ignores the question.
+- Grade 'yes' if the answer lists relevant resources, papers, or links requested by the user.
+- Grade 'no' only if the answer is completely irrelevant or ignores the question.
 
 Give a binary score 'yes' or 'no'.
 """
