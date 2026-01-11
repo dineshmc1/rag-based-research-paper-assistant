@@ -22,10 +22,9 @@ This system implements a **"Plan-Execute-Verify"** architecture inspired by rece
 *   **Agentic Orchestration with LangGraph**: A cyclic graph architecture where agents can loop, retry, and rewrite queries based on feedback, rather than a linear DAG.
 *   **Dual-Model Intelligence**: Leverages specialized models for distinct cognitive tasks—**Claude 3.5 Haiku** for precise tool calling/planning and **GPT-4.1-mini** for fluid text generation and grading.
 *   **Section-Aware Ingestion**: A custom PDF parsing pipeline (`pdf_parser.py`) that identifies and tags content by section (e.g., `section: "Methods"`), enabling scoped queries like *"Summarize the ablation studies in the Results section"*
-*   **Triple-Step Verification**:
-    1.  **Retrieval Grading**: Filters irrelevant noise before it reaches the context window.
-    2.  **Hallucination Grading**: Verifies that every claim in the answer is supported by the retrieved context.
-    3.  **Answer Grading**: Ensures the verified answer actually addresses the user's core question.
+*   **Context-Aware Verification**:
+    1.  **Retrieval Grading**: Filters irrelevant noise from local vector store results. Arxiv results are trusted by default to streamline external research.
+    2.  **Answer Grading**: Ensures the generated answer addresses the user's core question, with relaxed logic for list-based responses.
 *   **Text-in, Artifact-out Architecture**: Validates and generates visual artifacts (plots, charts) by executing Python code, persisting files, and returning structured paths, moving beyond simple text-only responses.
 *   **Hybrid Tool Use**: Seamlessly switches between local vector search, arXiv for external literature, and a Python sandbox for data analysis and visualization.
 
@@ -67,9 +66,9 @@ graph TD
         Grader1 --> |Irrelevant| Rewrite[Query Rewriter]
         Rewrite --> Orchestrator
         
-        Orchestrator --> |Generate Answer| Verifier[Hallucination Critic]
-        Verifier --> |Pass| Final[Final Answer]
-        Verifier --> |Fail| Loop[Retry Logic]
+        Orchestrator --> |Generate Answer| Check[Answer Grader]
+        Check --> |Pass| Final[Final Answer]
+        Check --> |Fail| Loop[Retry Logic]
         Loop --> Orchestrator
     end
 ```
@@ -140,7 +139,8 @@ The ingestion pipeline (`app.core`) transform raw PDFs into highly structured, q
 The system employs a **Retrieve-and-Rerank** strategy with intelligent query expansion.
 
 1.  **Dense Retrieval**: Initial KNN search in ChromaDB using cosine similarity (`Top-K=20`).
-2.  **Cross-Encoder Reranking**: The top 20 candidates are passed to a Cross-Encoder, which inputs `(query, document_text)` and outputs a relevance score. This is computationally more expensive but filters out "distractor" chunks that share keywords but not meaning.
+2.  **Cross-Encoder Reranking**: The top 20 candidates are passed to a Cross-Encoder, which inputs `(query, document_text)` and outputs a relevance score.
+    *   **Optimization**: Arxiv search results bypass strict grading to prevent false rejections of external abstracts.
 3.  **Query Transformation**: If retrieved documents are graded as `irrelevant`, the **Rewriter Agent** reformulates the query (e.g., adding synonyms, breaking down complex questions) before retrying.
 
 ## 8. Agent Design
@@ -155,12 +155,9 @@ The system consists of specialized agents coordinated by `langgraph`:
 *   **Orchestrator Agent**:
     *   **Input**: History of messages + Current Plan.
     *   **Role**: The "Executor". Decides whether to call a tool or generate a final answer. Handles artifact generation references (images) from tools.
-    *   **Tools**: Access to `retrieve_tool`, `arxiv_tool`, `python_interpreter` (with file persistence), and `web_search`.
-
 *   **Graders (Critics)**:
-    *   **Retrieval Grader**: Binary 'yes/no' on whether a document helps answer the specific question.
-    *   **Hallucination Grader**: 'yes/no' on whether the final generation is fully supported by the retrieved set.
-    *   **Answer Grader**: 'yes/no' on whether the grounded answer actually satisfies the user's intent.
+    *   **Retrieval Grader**: Evaluates relevance of *local* documents. (Arxiv results skipped).
+    *   **Answer Grader**: Validates that the final response addresses the question. (Hallucination check removed for streamlined tool usage).
 
 ## 9. Verification & Hallucination Control
 
