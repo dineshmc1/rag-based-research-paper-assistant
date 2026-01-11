@@ -9,9 +9,9 @@ app = FastAPI(title="Research RAG Assistant", version="1.0.0")
 from fastapi.staticfiles import StaticFiles
 import os
 
-# Ensure static directory exists
-os.makedirs("backend/static", exist_ok=True)
-app.mount("/static", StaticFiles(directory="backend/static"), name="static")
+# Ensure static directory exists (relative to backend/ where uvicorn runs)
+os.makedirs("static", exist_ok=True)
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # CORS middleware for frontend
 app.add_middleware(

@@ -39,7 +39,15 @@ export function AnswerBlock({ answer }: AnswerBlockProps) {
           remarkPlugins={[remarkGfm]}
           components={{
             // Ensure images (plots) are responsive and handled correctly
-            img: ({ node, ...props }) => <img {...props} className="max-w-full h-auto rounded-lg" />,
+            // Filter out empty src values to prevent React warnings
+            img: ({ node, src, alt, ...props }) => {
+              if (!src || src === "" || typeof src !== "string") return null;
+              // If it's a relative path from the backend, prepend the API URL
+              const imgSrc = src.startsWith("/")
+                ? `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}${src}`
+                : src;
+              return <img src={imgSrc} alt={alt || ""} {...props} className="max-w-full h-auto rounded-lg" />;
+            },
             // Style tables
             table: ({ node, ...props }) => <div className="overflow-x-auto my-4"><table {...props} className="w-full border-collapse text-sm" /></div>,
             th: ({ node, ...props }) => <th {...props} className="border border-border bg-muted p-2 text-left font-medium" />,

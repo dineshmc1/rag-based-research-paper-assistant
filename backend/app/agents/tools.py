@@ -148,9 +148,9 @@ def python_interpreter_tool(code: str) -> str:
             if plt.get_fignums():
                 # Generate unique filename
                 filename = f"plot_{uuid.uuid4()}.png"
-                # Ensure directory exists
-                os.makedirs("backend/static/exports", exist_ok=True)
-                filepath = f"backend/static/exports/{filename}"
+                # Ensure directory exists (relative to backend/ where uvicorn runs)
+                os.makedirs("static/exports", exist_ok=True)
+                filepath = f"static/exports/{filename}"
                 
                 plt.savefig(filepath, format="png")
                 plt.close('all')
