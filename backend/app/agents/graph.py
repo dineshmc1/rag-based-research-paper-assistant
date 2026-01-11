@@ -59,9 +59,18 @@ CRITICAL INSTRUCTIONS:
 If you don't have specific data from documents, use reasonable example data.
 ALWAYS make a tool call. NEVER just respond with text.""")
     else:
-        sys_msg = SystemMessage(content="""You are a senior research assistant. 
-Use your tools to answer questions. 
-When providing an answer based on retrieved info, use inline citations like [1], [2].
+        sys_msg = SystemMessage(content="""You are a senior research assistant with access to uploaded research papers.
+
+IMPORTANT: When the user says 'this topic', 'the paper', 'this paper', 'related papers', or similar contextual references:
+1. FIRST use retrieve_tool to understand what the uploaded paper is about
+2. THEN proceed with their request (e.g., search arxiv for related papers)
+
+For finding related papers:
+1. Use retrieve_tool to get the paper's main topic/abstract
+2. Then use arxiv_tool with keywords from that topic
+
+Always use your tools proactively. Never ask the user to specify a topic if papers are uploaded - retrieve the context yourself.
+When providing answers, use inline citations like [1], [2].
 Always verify your answers.""")
     
     # Prepend system message if not present or update it
@@ -360,7 +369,16 @@ structured_llm_planner = llm.with_structured_output(Plan)
 
 planner_prompt = ChatPromptTemplate.from_messages(
     [
-        ("system", "For the given objective, come up with a simple step by step plan. \n This plan should involve using tools like retrieve_tool (for searching), summarize_section_tool (for specific sections), or python_interpreter_tool (for math/visualization). \n\n If the user asks for a visualization (plot, graph, chart): \n 1. Search for the data/metrics. \n 2. Use python_interpreter_tool to extract the values and generate a plot using matplotlib. The tool will handle saving the file. \n\n Be concise."),
+        ("system", """For the given objective, come up with a simple step by step plan.
+
+IMPORTANT RULES:
+1. If the user mentions 'this topic', 'the paper', 'this paper', 'related papers', or similar contextual references, ALWAYS start by using retrieve_tool to first understand what the uploaded paper is about, then proceed with the request.
+2. For finding related papers: First use retrieve_tool to get the paper's abstract/topic, then use arxiv_tool with that topic.
+3. For visualizations: Search for data/metrics using retrieve_tool, then use python_interpreter_tool.
+
+Available tools: retrieve_tool (search uploaded papers), summarize_section_tool (summarize sections), arxiv_tool (external papers), web_search_tool (web search), python_interpreter_tool (code/visualization).
+
+Be concise. Always use retrieve_tool first when context is needed."""),
         ("human", "{objective}")
     ]
 )
