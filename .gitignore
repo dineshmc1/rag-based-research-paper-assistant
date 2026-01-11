@@ -29,3 +29,5 @@ next-env.d.ts
 backend/chroma_db/
 backend/uploaded_papers/
 backend/.env
+backend/static/exports/
+backend/static/exports/
