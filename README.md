@@ -20,6 +20,7 @@ This system implements a **"Plan-Execute-Verify"** architecture inspired by rece
 ## 2. Key Contributions
 
 *   **Agentic Orchestration with LangGraph**: A cyclic graph architecture where agents can loop, retry, and rewrite queries based on feedback, rather than a linear DAG.
+*   **Dual-Model Intelligence**: Leverages specialized models for distinct cognitive tasks—**Claude 3.5 Haiku** for precise tool calling/planning and **GPT-4.1-mini** for fluid text generation and grading.
 *   **Section-Aware Ingestion**: A custom PDF parsing pipeline (`pdf_parser.py`) that identifies and tags content by section (e.g., `section: "Methods"`), enabling scoped queries like *"Summarize the ablation studies in the Results section"*
 *   **Triple-Step Verification**:
     1.  **Retrieval Grading**: Filters irrelevant noise before it reaches the context window.
@@ -128,7 +129,8 @@ The ingestion pipeline (`app.core`) transform raw PDFs into highly structured, q
 
 | Component | Model / Technology | Justification | Alternatives Considered |
 | :--- | :--- | :--- | :--- |
-| **Reasoning Engine** | `gpt-4.1-mini` | High speed and reduced cost for iterative agent loops (planning, grading). | `gpt-4-turbo` (slower), `claude-3-haiku` |
+| **Tooling & Planning** | `anthropic/claude-3.5-haiku` | Superior adherence to complex tool schemas and lower hallucination rate for function calls. | `gpt-4-turbo` (slower), `llama-3-70b` |
+| **Text Generation** | `openai/gpt-4.1-mini` | High speed and fluidity for natural language synthesis and grading tasks. | `gpt-3.5-turbo`, `gemini-pro` |
 | **Embedding Model** | `sentence-transformers/all-MiniLM-L6-v2` | Excellent balance of performance and speed for local inference; widely benchmarked. | `openai-text-embedding-3-small` (requires API call) |
 | **Reranker** | `cross-encoder/ms-marco-MiniLM-L-6-v2` | Significantly boosts precision by scoring query-doc pairs directly. | Cohere Rerank (API dependency) |
 | **Search Provider** | Google Serper | Reliable, low-latency search for external grounding. | Tavily, Bing Search |
@@ -203,8 +205,11 @@ To maintain research-grade standards, we evaluate on:
 
 ## 15. How to Run
 
-1.  **Environment Setup**: Clone the repo and install dependencies (poetry or pip).
-2.  **Configuration**: Create a `.env` file with your `OPENAI_API_KEY` and optional `SERPER_API_KEY`.
+1.  **Environment Setup**: Clone the repo and install dependencies.
+    *   **Crucial**: Ensure `matplotlib` is installed in your environment for visualization support (`pip install matplotlib`).
+2.  **Configuration**: Create a `.env` file with your API keys.
+    *   Requires `OPENAI_API_KEY` (can be OpenRouter key) and `SERPER_API_KEY`.
+    *   Define `TOOL_MODEL` (e.g., `anthropic/claude-3.5-haiku`) and `OPENAI_MODEL` (e.g., `openai/gpt-4.1-mini`).
 3.  **Database Init**: The system will automatically create a local `chroma_db` on first run.
 4.  **Launch**:
     *   Backend: Run the FastAPI server via `uvicorn`.
