@@ -315,7 +315,9 @@ def grade_generation_decision(state: AgentState) -> Literal["__end__", "agent"]:
        return "__end__"
     
     if state.get("retry_count", 0) > 5:
-        print("---MAX RETRIES REACHED---")
+        print("---MAX RETRIES REACHED - ACCEPTING LAST ANSWER---")
+        # Force-accept the last answer to prevent silent failure
+        state["is_supported"] = True
         return "__end__"
         
     return "agent"

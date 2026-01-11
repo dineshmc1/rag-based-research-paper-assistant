@@ -57,10 +57,31 @@ async def query_papers(request: ChatRequest) -> ChatResponse:
         }
         final_state = await agent_app.ainvoke(initial_state, config=config)
         
-        # Extract answer
+        # Extract answer - find the last AIMessage with actual content
         messages = final_state["messages"]
-        last_message = messages[-1]
-        answer = last_message.content
+        answer = ""
+        
+        # Search backwards for the last AI message with content
+        for msg in reversed(messages):
+            # Check if it's an AI message (not a tool message, not human)
+            if hasattr(msg, 'content') and msg.content:
+                msg_type = type(msg).__name__
+                # AIMessage or similar - has content and is not a ToolMessage or HumanMessage
+                if 'AI' in msg_type or msg_type == 'AIMessage':
+                    answer = msg.content
+                    break
+        
+        # Fallback: if no AIMessage found, use the last message with content
+        if not answer:
+            for msg in reversed(messages):
+                if hasattr(msg, 'content') and msg.content and len(msg.content) > 10:
+                    answer = msg.content
+                    break
+        
+        # Ultimate fallback
+        if not answer:
+            answer = "I apologize, but I was unable to generate a complete response. Please try rephrasing your question."
+            
         state_docs = final_state.get("documents", [])
         state_artifacts = final_state.get("artifacts", [])
         citations = []
