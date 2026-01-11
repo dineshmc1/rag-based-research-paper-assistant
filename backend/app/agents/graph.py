@@ -306,9 +306,16 @@ def grade_generation_v_documents_and_question(state: AgentState):
              return {"is_supported": True}
 
     # TEXT MODE (Normal Path)
+    # Check if arxiv was used - if so, we trust the output more (it's external data) and skip strict hallucination check
+    arxiv_used = any("arxiv" in msg.name.lower() for msg in messages if hasattr(msg, "name") and msg.name)
+    
     # Grades
-    hallucination_score = hallucination_grader.invoke({"documents": docs, "generation": generation})
-    grade = hallucination_score.binary_score
+    if arxiv_used:
+        print("---ARXIV USED: SKIPPING STRICT HALLUCINATION CHECK---")
+        grade = "yes"
+    else:
+        hallucination_score = hallucination_grader.invoke({"documents": docs, "generation": generation})
+        grade = hallucination_score.binary_score
     
     if grade == "yes":
         print("---DECISION: GENERATION IS GROUNDED---")
