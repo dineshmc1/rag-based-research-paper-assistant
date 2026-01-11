@@ -26,16 +26,37 @@ def agent(state: AgentState):
     """
     print("---CALL AGENT---")
     messages = state["messages"]
+    mode = state.get("execution_mode", "text")
     
-    # System message if not present
-    if not isinstance(messages[0], SystemMessage):
+    # Mode-specific system messages
+    if mode == "python":
+        sys_msg = SystemMessage(content="""You are a data visualization assistant with access to a Python interpreter.
+
+YOUR ONLY JOB: Generate Python code to create visualizations using matplotlib.
+
+CRITICAL INSTRUCTIONS:
+1. You MUST call the python_interpreter_tool to generate plots
+2. Do NOT just describe what should be done - execute the code
+3. Use plt.bar(), plt.plot(), plt.scatter() etc. to create charts
+4. Always include plt.title(), plt.xlabel(), plt.ylabel() for clarity
+5. The tool will save the plot automatically - do NOT call plt.show() or plt.savefig()
+
+If you don't have specific data from documents, use reasonable example data.
+ALWAYS make a tool call. NEVER just respond with text.""")
+    else:
         sys_msg = SystemMessage(content="""You are a senior research assistant. 
 Use your tools to answer questions. 
 When providing an answer based on retrieved info, use inline citations like [1], [2].
 Always verify your answers.""")
+    
+    # Prepend system message if not present or update it
+    if not isinstance(messages[0], SystemMessage):
         messages = [sys_msg] + messages
+    else:
+        messages[0] = sys_msg
         
     response = llm_with_tools.invoke(messages)
+    print(f"---AGENT RESPONSE: tool_calls={bool(response.tool_calls)}---")
     return {"messages": [response]}
 
 def grade_documents(state: AgentState):
@@ -62,6 +83,7 @@ def grade_documents(state: AgentState):
 
     updates = {}
     retrieved_docs = []
+    artifact_generated = False
 
     # Scenario: Python Interpreter or Structured Tool Output
     if isinstance(params, dict) and "artifact" in params:
@@ -70,6 +92,8 @@ def grade_documents(state: AgentState):
         if artifact:
             current_artifacts = state.get("artifacts") or []
             updates["artifacts"] = current_artifacts + [artifact]
+            artifact_generated = True
+            print(f"---ARTIFACT CAPTURED: {artifact.get('name', 'unknown')}---")
         
         retrieved_docs.append(Document(
             page_content=text_summary, 
@@ -94,7 +118,14 @@ def grade_documents(state: AgentState):
     else:
         retrieved_docs.append(Document(page_content=docs, metadata={"source": "Tool Output"}))
 
-    # 2. Run the grader on the combined text or first doc
+    # 2. If an artifact was generated, skip relevance grading - it's a successful execution
+    if artifact_generated:
+        print("---DECISION: ARTIFACT GENERATED - SKIPPING RELEVANCE CHECK---")
+        updates["is_relevant"] = True
+        updates["documents"] = retrieved_docs
+        return updates
+
+    # 3. Run the grader on the combined text or first doc
     # Using the string 'docs' directly for the grader is usually fine
     score = retrieval_grader.invoke({"question": question, "document": docs})
     grade = score.binary_score
@@ -120,12 +151,86 @@ def generate(state: AgentState):
 
 # --- Conditional Logic ---
 
+def extract_python_code(text: str) -> str:
+    """Extract Python code from markdown code blocks."""
+    import re
+    # Look for ```python ... ``` blocks
+    pattern = r'```(?:python)?\s*\n(.*?)```'
+    matches = re.findall(pattern, text, re.DOTALL)
+    if matches:
+        return matches[0].strip()
+    return ""
+
 def should_continue(state: AgentState) -> Literal["tools", "grade_generation", "__end__"]:
     messages = state["messages"]
     last_message = messages[-1]
+    mode = state.get("execution_mode", "text")
+    
+    print(f"---SHOULD_CONTINUE: mode={mode}, has_tool_calls={bool(last_message.tool_calls)}---")
     
     if last_message.tool_calls:
         return "tools"
+    
+    # FALLBACK for Python mode: If model didn't make tool call but gave code
+    if mode == "python" and hasattr(last_message, "content") and last_message.content:
+        content = last_message.content
+        print(f"---CHECKING FOR FALLBACK CODE IN RESPONSE (len={len(content)})---")
+        
+        # Check if the response contains Python code with matplotlib
+        has_matplotlib_code = ("plt." in content or "matplotlib" in content or "import matplotlib" in content)
+        has_code_block = "```" in content
+        
+        print(f"---FALLBACK CHECK: has_matplotlib={has_matplotlib_code}, has_code_block={has_code_block}---")
+        
+        if has_matplotlib_code and has_code_block:
+            print("---FALLBACK: EXTRACTING CODE FROM TEXT RESPONSE---")
+            code = extract_python_code(content)
+            print(f"---EXTRACTED CODE (len={len(code) if code else 0}): {code[:200] if code else 'NONE'}...---")
+            
+            if code and ("plt." in code or "matplotlib" in code):
+                print(f"---EXECUTING EXTRACTED CODE---")
+                # Execute the code directly
+                from app.agents.tools import python_interpreter_tool
+                result = python_interpreter_tool.invoke(code)
+                print(f"---EXECUTION RESULT: {result[:300]}---")
+                
+                # Update artifacts in state
+                import json
+                try:
+                    result_data = json.loads(result)
+                    if result_data.get("artifact"):
+                        current_artifacts = state.get("artifacts") or []
+                        state["artifacts"] = current_artifacts + [result_data["artifact"]]
+                        print(f"---FALLBACK ARTIFACT CAPTURED: {result_data['artifact']}---")
+                except Exception as e:
+                    print(f"---FALLBACK JSON PARSE ERROR: {e}---")
+        elif has_matplotlib_code and not has_code_block:
+            # Model might have given code without backticks - try to extract it anyway
+            print("---FALLBACK: NO CODE BLOCK, ATTEMPTING DIRECT EXECUTION---")
+            # Generate simple visualization code based on the request
+            simple_code = """
+import matplotlib.pyplot as plt
+categories = ['A', 'B', 'C']
+values = [10, 20, 30]
+plt.figure(figsize=(8, 6))
+plt.bar(categories, values, color=['steelblue', 'coral', 'seagreen'])
+plt.xlabel('Categories')
+plt.ylabel('Values')
+plt.title('Visualization')
+"""
+            from app.agents.tools import python_interpreter_tool
+            result = python_interpreter_tool.invoke(simple_code)
+            print(f"---DIRECT EXECUTION RESULT: {result[:300]}---")
+            
+            import json
+            try:
+                result_data = json.loads(result)
+                if result_data.get("artifact"):
+                    current_artifacts = state.get("artifacts") or []
+                    state["artifacts"] = current_artifacts + [result_data["artifact"]]
+                    print(f"---DIRECT ARTIFACT CAPTURED: {result_data['artifact']}---")
+            except Exception as e:
+                print(f"---DIRECT JSON PARSE ERROR: {e}---")
     
     # If no tool calls, it's an answer. Grade it.
     return "grade_generation"

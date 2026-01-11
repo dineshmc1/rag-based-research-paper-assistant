@@ -93,6 +93,7 @@ def python_interpreter_tool(code: str) -> str:
         code: valid python code string.
     """
     print(f"---EXECUTING CODE---")
+    print(f"Code to execute:\n{code[:500]}...")  # Debug: show first 500 chars
     try:
         import sys
         import io
@@ -103,7 +104,8 @@ def python_interpreter_tool(code: str) -> str:
         
         # Capture stdout
         old_stdout = sys.stdout
-        redirected_output = sys.output = StringIO()
+        redirected_output = StringIO()
+        sys.stdout = redirected_output
         
         # Prepare environment
         local_vars = {}
@@ -141,6 +143,9 @@ def python_interpreter_tool(code: str) -> str:
         # Get stdout
         output_str = redirected_output.getvalue()
         
+        # Restore stdout before any print statements
+        sys.stdout = old_stdout
+        
         # Check for plots if matplotlib was available
         artifact_info = None
         if "plt" in allowed_modules:
@@ -152,7 +157,7 @@ def python_interpreter_tool(code: str) -> str:
                 os.makedirs("static/exports", exist_ok=True)
                 filepath = f"static/exports/{filename}"
                 
-                plt.savefig(filepath, format="png")
+                plt.savefig(filepath, format="png", dpi=150, bbox_inches='tight')
                 plt.close('all')
                 
                 # Create artifact info
@@ -162,8 +167,9 @@ def python_interpreter_tool(code: str) -> str:
                     "name": filename
                 }
                 output_str += f"\n\n[Plot generated and saved to {filepath}]"
-        
-        sys.stdout = old_stdout
+                print(f"---PLOT SAVED: {filepath}---")
+            else:
+                print("---NO FIGURE TO SAVE---")
         
         # Return structured JSON
         result = {
@@ -171,9 +177,14 @@ def python_interpreter_tool(code: str) -> str:
             "artifact": artifact_info
         }
         
+        print(f"---TOOL RESULT: artifact={artifact_info is not None}---")
         return json.dumps(result)
         
     except Exception as e:
+        # Restore stdout in case of error
+        import sys
+        sys.stdout = old_stdout if 'old_stdout' in dir() else sys.__stdout__
+        print(f"---CODE EXECUTION ERROR: {e}---")
         return json.dumps({
             "text_summary": f"Error executing code: {e}",
             "artifact": None
