@@ -15,7 +15,7 @@ from app.agents.graders import retrieval_grader, hallucination_grader, answer_gr
 
 # --- LLM & Tools ---
 tools = [retrieve_tool, arxiv_tool, python_interpreter_tool, summarize_section_tool, web_search_tool]
-llm = ChatOpenAI(model=settings.OPENAI_MODEL, temperature=0)
+llm = ChatOpenAI(model=settings.OPENAI_MODEL, base_url=settings.OPENAI_API_BASE, temperature=0)
 llm_with_tools = llm.bind_tools(tools)
 
 # --- Nodes ---

@@ -205,7 +205,7 @@ def summarize_section_tool(section_name: str, paper_id: Optional[str] = None) ->
     from langchain_openai import ChatOpenAI
     from langchain_core.messages import HumanMessage
     
-    llm = ChatOpenAI(model=settings.OPENAI_MODEL, temperature=0)
+    llm = ChatOpenAI(model=settings.OPENAI_MODEL, base_url=settings.OPENAI_API_BASE, temperature=0)
     msg = HumanMessage(content=f"Synthesize and summarize the following content from the '{section_name}' section of a research paper. \n\n Content: \n {context[:20000]}...") # truncate for safety
     
     response = llm.invoke([msg])
