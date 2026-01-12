@@ -24,19 +24,15 @@ async def upload_paper(file: UploadFile = File(...)) -> Dict:
     if not file.filename.endswith('.pdf'):
         raise HTTPException(status_code=400, detail="Only PDF files are allowed")
     
-    # Generate paper ID
     paper_id = str(uuid.uuid4())
     
-    # Save file
     file_path = os.path.join(UPLOAD_DIR, f"{paper_id}.pdf")
     with open(file_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
     
     try:
-        # Parse PDF
         pages_data = PDFParser.parse_pdf(file_path)
         
-        # Chunk text
         chunker = SemanticChunker(
             chunk_size=settings.CHUNK_SIZE,
             overlap=settings.CHUNK_OVERLAP
@@ -44,7 +40,6 @@ async def upload_paper(file: UploadFile = File(...)) -> Dict:
         
         all_chunks = []
         for page_data in pages_data:
-            # Skip references section
             if PDFParser.should_skip_section(page_data["section"]):
                 continue
             
@@ -56,11 +51,9 @@ async def upload_paper(file: UploadFile = File(...)) -> Dict:
             )
             all_chunks.extend(chunks)
         
-        # Generate embeddings
         chunk_texts = [chunk["text"] for chunk in all_chunks]
         embeddings = embedding_model.embed_batch(chunk_texts)
         
-        # Store in ChromaDB
         chroma_db.add_chunks(all_chunks, embeddings)
         
         return {
@@ -72,7 +65,6 @@ async def upload_paper(file: UploadFile = File(...)) -> Dict:
         }
         
     except Exception as e:
-        # Clean up on failure
         if os.path.exists(file_path):
             os.remove(file_path)
         raise HTTPException(status_code=500, detail=f"Processing failed: {str(e)}")
@@ -81,10 +73,8 @@ async def upload_paper(file: UploadFile = File(...)) -> Dict:
 async def delete_paper(paper_id: str) -> Dict:
     """Delete a paper and its chunks"""
     try:
-        # Delete from ChromaDB
         chroma_db.delete_paper(paper_id)
         
-        # Delete file
         file_path = os.path.join(UPLOAD_DIR, f"{paper_id}.pdf")
         if os.path.exists(file_path):
             os.remove(file_path)
