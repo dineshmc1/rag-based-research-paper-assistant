@@ -13,9 +13,9 @@ router = APIRouter()
 
 class ChatRequest(BaseModel):
     query: str
-    paper_ids: List[str] = []  # List of paper IDs to search
+    paper_ids: List[str] = []  
     include_reasoning: bool = False
-    execution_mode: str = "text" # "text" or "python"
+    execution_mode: str = "text" 
 
 class ChatResponse(BaseModel):
     answer: str
@@ -37,7 +37,7 @@ async def query_papers(request: ChatRequest) -> ChatResponse:
         # Initial state
         initial_state = {
             "messages": [HumanMessage(content=request.query)],
-            "paper_ids": request.paper_ids,  # Papers to search
+            "paper_ids": request.paper_ids,  
             "is_relevant": True,
             "is_supported": True,
             "documents": [],
@@ -50,35 +50,35 @@ async def query_papers(request: ChatRequest) -> ChatResponse:
             "plan": []
         }
         
-        # Invoke agent with increased recursion limit
+        
         config = {
-            "configurable": {"thread_id": "1"},  # TODO: Use session ID
-            "recursion_limit": 50  # Prevent GraphRecursionError
+            "configurable": {"thread_id": "1"},  
+            "recursion_limit": 50  
         }
         final_state = await agent_app.ainvoke(initial_state, config=config)
         
-        # Extract answer - find the last AIMessage with actual content
+        
         messages = final_state["messages"]
         answer = ""
         
-        # Search backwards for the last AI message with content
+        
         for msg in reversed(messages):
-            # Check if it's an AI message (not a tool message, not human)
+            
             if hasattr(msg, 'content') and msg.content:
                 msg_type = type(msg).__name__
-                # AIMessage or similar - has content and is not a ToolMessage or HumanMessage
+                
                 if 'AI' in msg_type or msg_type == 'AIMessage':
                     answer = msg.content
                     break
         
-        # Fallback: if no AIMessage found, use the last message with content
+        
         if not answer:
             for msg in reversed(messages):
                 if hasattr(msg, 'content') and msg.content and len(msg.content) > 10:
                     answer = msg.content
                     break
         
-        # Ultimate fallback
+        
         if not answer:
             answer = "I apologize, but I was unable to generate a complete response. Please try rephrasing your question."
             
@@ -87,19 +87,16 @@ async def query_papers(request: ChatRequest) -> ChatResponse:
         citations = []
         retrieved_chunks = []
 
-        # ... (citation processing) ...
+        
         for i, doc in enumerate(state_docs):
-            # Create the citation for the frontend
-            # Ensure safe type conversion for confidence
+            
             try:
                 score = float(doc.metadata.get("score", 0.0))
             except (ValueError, TypeError):
                 score = 0.0
             
-            # Get page number - use page_number key, fallback to parsing source
             page = doc.metadata.get("page_number")
             if page is None:
-                # Try to parse from source string "Page X - Section Y"
                 source_str = doc.metadata.get("source", "")
                 if "Page " in source_str:
                     try:
@@ -120,11 +117,11 @@ async def query_papers(request: ChatRequest) -> ChatResponse:
                 "chunk_id": doc.metadata.get("chunk_id") or f"chunk_{i}",
                 "confidence": score,
                 "section": section,
-                "content": doc.page_content # Keep content just in case
+                "content": doc.page_content 
             }
             citations.append(citation)
             
-            # Create the chunk for the UI
+            
             retrieved_chunks.append({
                 "text": doc.page_content,
                 "index": i + 1
@@ -132,7 +129,7 @@ async def query_papers(request: ChatRequest) -> ChatResponse:
         
         concepts = extract_concepts(answer)
         
-        # Append artifacts to answer if present (for backward compatibility / easy rendering)
+        
         if state_artifacts:
             for art in state_artifacts:
                 if art["type"] == "image":
@@ -154,19 +151,17 @@ async def query_papers(request: ChatRequest) -> ChatResponse:
 
 def extract_concepts(text: str) -> List[str]:
     """Simple concept extraction from answer text"""
-    # This is a placeholder - could use NER or keyword extraction
     import re
     
-    # Extract capitalized phrases and technical terms
     words = text.split()
     concepts = []
     
     for word in words:
-        # Remove punctuation
+        
         clean_word = re.sub(r'[^\w\s-]', '', word)
-        # Add if it looks like a concept (capitalized, technical term, etc.)
+        
         if len(clean_word) > 3 and (clean_word[0].isupper() or '-' in clean_word):
             if clean_word not in concepts:
                 concepts.append(clean_word)
     
-    return concepts[:10]  # Limit to top 10
+    return concepts[:10]  
