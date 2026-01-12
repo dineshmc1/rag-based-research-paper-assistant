@@ -14,15 +14,15 @@ async def get_knowledge_graph(paper_id: str) -> Dict:
     Returns nodes and edges for visualization
     """
     try:
-        # Get all chunks for the paper
+        
         chunks = chroma_db.get_paper_chunks(paper_id)
         
         if not chunks:
             raise HTTPException(status_code=404, detail="Paper not found")
         
-        # Extract concepts from chunks
+        
         all_concepts = []
-        concept_chunks = {}  # Map concepts to chunks they appear in
+        concept_chunks = {}  
         
         for chunk in chunks:
             concepts = extract_concepts_from_text(chunk["text"])
@@ -33,11 +33,11 @@ async def get_knowledge_graph(paper_id: str) -> Dict:
                     concept_chunks[concept] = []
                 concept_chunks[concept].append(chunk["chunk_id"])
         
-        # Get top concepts by frequency
+        
         concept_freq = Counter(all_concepts)
         top_concepts = [concept for concept, _ in concept_freq.most_common(20)]
         
-        # Build nodes
+        
         nodes = [
             {
                 "id": concept,
@@ -48,14 +48,14 @@ async def get_knowledge_graph(paper_id: str) -> Dict:
             for concept in top_concepts
         ]
         
-        # Build edges (co-occurrence in same chunk)
+        
         edges = []
         edge_set = set()
         
         for chunk in chunks:
             chunk_concepts = [c for c in extract_concepts_from_text(chunk["text"]) if c in top_concepts]
             
-            # Create edges between concepts in same chunk
+            
             for i, concept1 in enumerate(chunk_concepts):
                 for concept2 in chunk_concepts[i+1:]:
                     edge_key = tuple(sorted([concept1, concept2]))
@@ -67,7 +67,7 @@ async def get_knowledge_graph(paper_id: str) -> Dict:
                         })
                         edge_set.add(edge_key)
                     else:
-                        # Increment weight for existing edge
+                        
                         for edge in edges:
                             if (edge["source"] == edge_key[0] and edge["target"] == edge_key[1]) or \
                                (edge["source"] == edge_key[1] and edge["target"] == edge_key[0]):
@@ -87,25 +87,25 @@ async def get_knowledge_graph(paper_id: str) -> Dict:
 
 def extract_concepts_from_text(text: str) -> List[str]:
     """Extract technical concepts from text"""
-    # Extract capitalized multi-word terms and technical terms
+    
     concepts = []
     
-    # Pattern for capitalized phrases (2-4 words)
+    
     pattern = r'\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,3})\b'
     matches = re.findall(pattern, text)
     concepts.extend(matches)
     
-    # Pattern for hyphenated technical terms
+    
     pattern = r'\b([a-z]+-[a-z]+(?:-[a-z]+)*)\b'
     matches = re.findall(pattern, text.lower())
     concepts.extend(matches)
     
-    # Pattern for acronyms
+    
     pattern = r'\b([A-Z]{2,})\b'
     matches = re.findall(pattern, text)
     concepts.extend(matches)
     
-    # Clean and deduplicate
+    
     concepts = [c.strip() for c in concepts if len(c) > 3]
     
     return concepts
