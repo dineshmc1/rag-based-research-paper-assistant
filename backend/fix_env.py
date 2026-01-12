@@ -13,12 +13,12 @@ try:
     
     print(f"Wrote {len(content)} bytes to {file_path}")
     
-    # Verify bytes
+    
     with open(file_path, 'rb') as f:
         header = f.read(5)
         print(f"Header bytes: {header}")
         
-    # Verify config load
+    
     from app.core.config import settings
     print(f"Config loaded. Model: {settings.OPENAI_MODEL}")
 

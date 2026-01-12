@@ -13,19 +13,16 @@ from app.agents.state import AgentState
 from app.agents.tools import retrieve_tool, arxiv_tool, python_interpreter_tool, summarize_section_tool, web_search_tool
 from app.agents.graders import retrieval_grader, hallucination_grader, answer_grader
 
-# --- LLM & Tools ---
 tools = [retrieve_tool, arxiv_tool, python_interpreter_tool, summarize_section_tool, web_search_tool]
 
-# Claude for tool calling (better at function calls)
 llm_tools = ChatOpenAI(
     model=settings.TOOL_MODEL, 
     base_url=settings.TOOL_API_BASE, 
-    api_key=settings.OPENAI_API_KEY,  # OpenRouter uses same API key format
+    api_key=settings.OPENAI_API_KEY,
     temperature=0
 )
 llm_with_tools = llm_tools.bind_tools(tools)
 
-# GPT for text generation and grading
 llm = ChatOpenAI(
     model=settings.OPENAI_MODEL, 
     base_url=settings.OPENAI_API_BASE, 
@@ -33,7 +30,6 @@ llm = ChatOpenAI(
     temperature=0
 )
 
-# --- Nodes ---
 
 def agent(state: AgentState):
     """
@@ -43,7 +39,6 @@ def agent(state: AgentState):
     messages = state["messages"]
     mode = state.get("execution_mode", "text")
     
-    # Mode-specific system messages
     if mode == "python":
         sys_msg = SystemMessage(content="""You are a data visualization assistant with access to a Python interpreter.
 
@@ -73,7 +68,6 @@ Always use your tools proactively. Never ask the user to specify a topic if pape
 When providing answers, use inline citations like [1], [2].
 Always verify your answers.""")
     
-    # Prepend system message if not present or update it
     if not isinstance(messages[0], SystemMessage):
         messages = [sys_msg] + messages
     else:
@@ -97,19 +91,16 @@ def grade_documents(state: AgentState):
     question = messages[0].content
     docs = last_message.content 
     
-    # 1. First, try to parse JSON if the tool returns structured data
     params = None
     try:
         params = json.loads(docs)
     except (json.JSONDecodeError, TypeError):
-        # It's just a plain string (Arxiv, Web Search, etc.)
         params = None
 
     updates = {}
     retrieved_docs = []
     artifact_generated = False
 
-    # Scenario: Python Interpreter or Structured Tool Output
     if isinstance(params, dict) and "artifact" in params:
         artifact = params.get("artifact")
         text_summary = params.get("text_summary", "")
@@ -124,7 +115,6 @@ def grade_documents(state: AgentState):
             metadata={"source": "Python Interpreter", "artifact": artifact}
         ))
 
-    # Scenario: Retrieve Tool Output (list of dicts)
     elif isinstance(params, list):
         for item in params:
             content = item.get("content", str(item))
@@ -138,26 +128,21 @@ def grade_documents(state: AgentState):
             }
             retrieved_docs.append(Document(page_content=content, metadata=metadata))
 
-    # Scenario: Fallback for plain text (the most common case for search/arxiv)
     else:
         retrieved_docs.append(Document(page_content=docs, metadata={"source": "Tool Output"}))
 
-    # 2. If an artifact was generated, skip relevance grading - it's a successful execution
     if artifact_generated:
         print("---DECISION: ARTIFACT GENERATED - SKIPPING RELEVANCE CHECK---")
         updates["is_relevant"] = True
         updates["documents"] = retrieved_docs
         return updates
 
-    # 3. If the source is Arxiv, skip relevance grading - we trust the search
     if hasattr(last_message, "name") and last_message.name and "arxiv" in last_message.name.lower():
         print("---DECISION: ARXIV SOURCE - SKIPPING RELEVANCE CHECK---")
         updates["is_relevant"] = True
         updates["documents"] = retrieved_docs
         return updates
 
-    # 4. Run the grader on the combined text or first doc
-    # Using the string 'docs' directly for the grader is usually fine
     score = retrieval_grader.invoke({"question": question, "document": docs})
     grade = score.binary_score
     
@@ -176,16 +161,13 @@ def generate(state: AgentState):
     print("---GENERATE---")
     messages = state["messages"]
     
-    # Logic to formulate answer based on conversation
     response = llm.invoke(messages)
     return {"messages": [response]}
 
-# --- Conditional Logic ---
 
 def extract_python_code(text: str) -> str:
     """Extract Python code from markdown code blocks."""
     import re
-    # Look for ```python ... ``` blocks
     pattern = r'```(?:python)?\s*\n(.*?)```'
     matches = re.findall(pattern, text, re.DOTALL)
     if matches:
@@ -202,12 +184,10 @@ def should_continue(state: AgentState) -> Literal["tools", "grade_generation", "
     if last_message.tool_calls:
         return "tools"
     
-    # FALLBACK for Python mode: If model didn't make tool call but gave code
     if mode == "python" and hasattr(last_message, "content") and last_message.content:
         content = last_message.content
         print(f"---CHECKING FOR FALLBACK CODE IN RESPONSE (len={len(content)})---")
         
-        # Check if the response contains Python code with matplotlib
         has_matplotlib_code = ("plt." in content or "matplotlib" in content or "import matplotlib" in content)
         has_code_block = "```" in content
         
@@ -220,12 +200,10 @@ def should_continue(state: AgentState) -> Literal["tools", "grade_generation", "
             
             if code and ("plt." in code or "matplotlib" in code):
                 print(f"---EXECUTING EXTRACTED CODE---")
-                # Execute the code directly
                 from app.agents.tools import python_interpreter_tool
                 result = python_interpreter_tool.invoke(code)
                 print(f"---EXECUTION RESULT: {result[:300]}---")
                 
-                # Update artifacts in state
                 import json
                 try:
                     result_data = json.loads(result)
@@ -236,9 +214,7 @@ def should_continue(state: AgentState) -> Literal["tools", "grade_generation", "
                 except Exception as e:
                     print(f"---FALLBACK JSON PARSE ERROR: {e}---")
         elif has_matplotlib_code and not has_code_block:
-            # Model might have given code without backticks - try to extract it anyway
             print("---FALLBACK: NO CODE BLOCK, ATTEMPTING DIRECT EXECUTION---")
-            # Generate simple visualization code based on the request
             simple_code = """
 import matplotlib.pyplot as plt
 categories = ['A', 'B', 'C']
@@ -263,7 +239,6 @@ plt.title('Visualization')
             except Exception as e:
                 print(f"---DIRECT JSON PARSE ERROR: {e}---")
     
-    # If no tool calls, it's an answer. Grade it.
     return "grade_generation"
 
 
@@ -275,7 +250,6 @@ def grade_generation_v_documents_and_question(state: AgentState):
     """
     print("---CHECK HALLUCINATIONS---")
     
-    # 1. Get the most relevant question (could be a rewritten one)
     messages = state["messages"]
     question = messages[0].content
     for msg in reversed(messages):
@@ -283,7 +257,6 @@ def grade_generation_v_documents_and_question(state: AgentState):
             question = msg.content
             break
             
-    # 2. Add paper context if "this" or "paper" is mentioned, to help the grader understand
     paper_ids = state.get("paper_ids", [])
     if paper_ids and ("this" in question.lower() or "paper" in question.lower()):
         question += f" (Context: referencing uploaded papers {paper_ids})"
@@ -291,7 +264,6 @@ def grade_generation_v_documents_and_question(state: AgentState):
     last_message = messages[-1]
     generation = last_message.content
     
-    # Get all tool message contents as "facts"
     docs_list = []
     for msg in messages:
         if hasattr(msg, "tool_call_id"):
@@ -309,17 +281,13 @@ def grade_generation_v_documents_and_question(state: AgentState):
              return {"is_supported": False, "retry_count": state.get("retry_count", 0) + 1}
          else:
              print("---DECISION: ARTIFACT GENERATED---")
-             # Ideally we would grade the artifact here. For now, existence is success.
              return {"is_supported": True}
 
-    # TEXT MODE (Normal Path)
-    # Skipping hallucination check as per user request to trust the agent's output logic
     print("---SKIPPING HALLUCINATION CHECK---")
     grade = "yes"
     
     if grade == "yes":
         print("---DECISION: GENERATION IS GROUNDED---")
-        # Check answer quality
         print("---CHECK ANSWER QUALITY---")
         answer_score = answer_grader.invoke({"question": question, "generation": generation})
         grade = answer_score.binary_score
@@ -344,7 +312,6 @@ def grade_generation_decision(state: AgentState) -> Literal["__end__", "agent"]:
     
     if state.get("retry_count", 0) > 5:
         print("---MAX RETRIES REACHED - ACCEPTING LAST ANSWER---")
-        # Force-accept the last answer to prevent silent failure
         state["is_supported"] = True
         return "__end__"
         
@@ -360,7 +327,6 @@ def rewrite(state: AgentState):
     
     msg = [HumanMessage(content=f"Look at the input and try to reason about the underlying semantic intent / meaning. \n Here is the initial question: \n\n {question} \n Formulate an improved question.")]
     
-    # Grader LLM can be used or the main agent model
     response = llm.invoke(msg)
     
     return {"messages": [HumanMessage(content=response.content)]}
@@ -377,7 +343,6 @@ def check_relevance(state: AgentState) -> Literal["agent", "rewrite"]:
         print("---DECISION: NOT RELEVANT -> REWRITE---")
         return "rewrite"
 
-# --- Planner ---
 from pydantic import BaseModel, Field
 
 class Plan(BaseModel):
@@ -410,13 +375,11 @@ def plan_node(state: AgentState):
     question = messages[0].content
     paper_ids = state.get("paper_ids", [])
     
-    # Build paper context message
     if paper_ids:
         paper_context = f"You have {len(paper_ids)} research paper(s) uploaded. Use the retrieve_tool to search these papers and answer questions about them."
     else:
         paper_context = "No papers are currently uploaded. You can use arxiv_tool or web_search_tool for external research."
     
-    # Mode-specific constraints
     mode = state.get("execution_mode", "text")
     if mode == "text":
         objective_msg = f"{question} \n\n CONTEXT: {paper_context} \n\n CONSTRAINT: You are in TEXT_MODE. Do NOT use the python_interpreter_tool. Provide a text-only answer based on retrieval."
@@ -427,17 +390,13 @@ def plan_node(state: AgentState):
 
     plan_result = planner.invoke({"objective": objective_msg})
     
-    # Create a system message with the plan to guide the agent
     steps_str = "\n".join([f"{i+1}. {step}" for i, step in enumerate(plan_result.steps)])
     sys_msg = SystemMessage(content=f"You are a helpful research assistant. \n\n PAPER CONTEXT: {paper_context} \n\n Here is your plan: \n {steps_str} \n\n Follow this plan to answer the user's question. \n Use your tools - especially retrieve_tool to search the uploaded papers. \n Execution Mode: {mode.upper()}.")
     
-    # We update messages to include this guidance
     return {"plan": plan_result.steps, "messages": [sys_msg]}
 
-# --- Graph ---
 workflow = StateGraph(AgentState)
 
-# Define nodes
 workflow.add_node("planner", plan_node)
 workflow.add_node("agent", agent)
 workflow.add_node("tools", ToolNode(tools))
@@ -445,8 +404,6 @@ workflow.add_node("grade_documents", grade_documents)
 workflow.add_node("grade_generation", grade_generation_v_documents_and_question)
 workflow.add_node("rewrite", rewrite)
 
-# Define edges
-# Start with planner
 workflow.add_edge(START, "planner")
 workflow.add_edge("planner", "agent")
 
@@ -482,6 +439,5 @@ workflow.add_conditional_edges(
     }
 )
 
-# Compile
 memory = MemorySaver()
 app = workflow.compile(checkpointer=memory)

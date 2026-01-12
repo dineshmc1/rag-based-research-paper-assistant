@@ -6,7 +6,7 @@ from app.core.config import settings
 
 llm = ChatOpenAI(model=settings.TOOL_MODEL, base_url=settings.TOOL_API_BASE, api_key=settings.OPENAI_API_KEY, temperature=0)
 
-# --- Retrieval Grader ---
+
 class GradeDocuments(BaseModel):
     """Binary score for relevance check on retrieved documents."""
     binary_score: str = Field(description="Documents are relevant to the question, 'yes' or 'no'")
@@ -26,7 +26,6 @@ grade_prompt = ChatPromptTemplate.from_messages(
 
 retrieval_grader = grade_prompt | structured_llm_grader
 
-# --- Hallucination Grader ---
 class GradeHallucinations(BaseModel):
     """Binary score for hallucination check in generation documents."""
     binary_score: str = Field(description="Answer is grounded in the facts, 'yes' or 'no'")
@@ -50,7 +49,6 @@ hallucination_prompt = ChatPromptTemplate.from_messages(
 
 hallucination_grader = hallucination_prompt | structured_llm_hallucination_grader
 
-# --- Answer Grader ---
 class GradeAnswer(BaseModel):
     """Binary score to assess answer addresses question."""
     binary_score: str = Field(description="Answer addresses the question, 'yes' or 'no'")

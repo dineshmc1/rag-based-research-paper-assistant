@@ -18,10 +18,8 @@ def retrieve_tool(query: str, paper_id: Optional[str] = None) -> List[Dict[str, 
     """
     print(f"---RETRIEVING: {query} (paper_id={paper_id})---")
     
-    # 1. Embed query
     query_embedding = embedding_model.embed_text(query)
     
-    # 2. Retrieve from Chroma
     chunks = chroma_db.query(
         query_embedding=query_embedding,
         top_k=settings.TOP_K_RETRIEVAL,
@@ -31,14 +29,12 @@ def retrieve_tool(query: str, paper_id: Optional[str] = None) -> List[Dict[str, 
     if not chunks:
         return []
 
-    # 3. Rerank
     reranked_chunks = reranker.rerank(
         query=query,
         chunks=chunks,
         top_k=settings.TOP_K_RERANKED
     )
     
-    # Format for agent
     results = []
     for chunk, score in reranked_chunks:
         results.append({
@@ -93,7 +89,7 @@ def python_interpreter_tool(code: str) -> str:
         code: valid python code string.
     """
     print(f"---EXECUTING CODE---")
-    print(f"Code to execute:\n{code[:500]}...")  # Debug: show first 500 chars
+    print(f"Code to execute:\n{code[:500]}...")  
     try:
         import sys
         import io
@@ -102,15 +98,12 @@ def python_interpreter_tool(code: str) -> str:
         import os
         from io import StringIO
         
-        # Capture stdout
         old_stdout = sys.stdout
         redirected_output = StringIO()
         sys.stdout = redirected_output
         
-        # Prepare environment
         local_vars = {}
         
-        # Relaxed globals with common data science libs
         allowed_modules = {}
         try:
             import math
@@ -131,39 +124,31 @@ def python_interpreter_tool(code: str) -> str:
             
         try:
             import matplotlib.pyplot as plt
-            # Set non-interactive backend
             plt.switch_backend('Agg')
             allowed_modules["plt"] = plt
             allowed_modules["matplotlib"] = plt
         except ImportError: pass
 
-        # EXECUTE
         exec(code, {**allowed_modules}, local_vars)
         
-        # Get stdout
         output_str = redirected_output.getvalue()
         
-        # Restore stdout before any print statements
         sys.stdout = old_stdout
         
-        # Check for plots if matplotlib was available
         artifact_info = None
         if "plt" in allowed_modules:
             plt = allowed_modules["plt"]
             if plt.get_fignums():
-                # Generate unique filename
                 filename = f"plot_{uuid.uuid4()}.png"
-                # Ensure directory exists (relative to backend/ where uvicorn runs)
                 os.makedirs("static/exports", exist_ok=True)
                 filepath = f"static/exports/{filename}"
                 
                 plt.savefig(filepath, format="png", dpi=150, bbox_inches='tight')
                 plt.close('all')
                 
-                # Create artifact info
                 artifact_info = {
                     "type": "image",
-                    "path": f"/static/exports/{filename}", # URL path for frontend
+                    "path": f"/static/exports/{filename}", 
                     "name": filename
                 }
                 output_str += f"\n\n[Plot generated and saved to {filepath}]"
@@ -171,7 +156,6 @@ def python_interpreter_tool(code: str) -> str:
             else:
                 print("---NO FIGURE TO SAVE---")
         
-        # Return structured JSON
         result = {
             "text_summary": output_str if output_str.strip() else "Code executed successfully (no output).",
             "artifact": artifact_info
@@ -181,7 +165,6 @@ def python_interpreter_tool(code: str) -> str:
         return json.dumps(result)
         
     except Exception as e:
-        # Restore stdout in case of error
         import sys
         sys.stdout = old_stdout if 'old_stdout' in dir() else sys.__stdout__
         print(f"---CODE EXECUTION ERROR: {e}---")
@@ -202,16 +185,13 @@ def summarize_section_tool(section_name: str, paper_id: Optional[str] = None) ->
     """
     print(f"---SUMMARIZING SECTION: {section_name}---")
     
-    # 1. Get raw text chunks
     chunks = chroma_db.query_section(section_name=section_name, paper_id=paper_id)
     
     if not chunks:
         return f"No content found for section '{section_name}'."
         
-    # 2. Concatenate text (limit to fit context window if needed, naive join for now)
     context = "\n".join([c["text"] for c in chunks])
     
-    # 3. Summarize using direct LLM call or new specialized prompt
     from app.core.config import settings
     from langchain_openai import ChatOpenAI
     from langchain_core.messages import HumanMessage
@@ -222,11 +202,10 @@ def summarize_section_tool(section_name: str, paper_id: Optional[str] = None) ->
     response = llm.invoke([msg])
     summary = response.content
     
-    # Return as JSON list for graph.py parsing
     import json
     result = [{
         "content": summary,
-        "source": section_name, # e.g. "Abstract"
+        "source": section_name, 
         "score": 1.0,
         "paper_id": paper_id,
         "chunk_id": f"summary_{section_name}"
@@ -248,7 +227,6 @@ def web_search_tool(query: str) -> str:
     print(f"---WEB SEARCH: {query}---")
     from langchain_community.utilities import GoogleSerperAPIWrapper
     
-    # Needs SERPER_API_KEY in env
     try:
         search = GoogleSerperAPIWrapper()
         return search.run(query)
