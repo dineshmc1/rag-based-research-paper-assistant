@@ -19,7 +19,7 @@ async def list_papers() -> List[Dict]:
                 if filename.endswith('.pdf'):
                     paper_id = filename.replace('.pdf', '')
                     
-                    # Get chunk count from ChromaDB
+                    
                     chunks = chroma_db.get_paper_chunks(paper_id)
                     
                     papers.append({
